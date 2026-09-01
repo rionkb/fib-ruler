@@ -8,6 +8,7 @@
     <Canvas x:Name="OverlayCanvas"
             Background="Transparent"
             MouseLeftButtonDown="OverlayCanvas_MouseLeftButtonDown"
+            MouseRightButtonDown="OverlayCanvas_MouseRightButtonDown"
             MouseMove="OverlayCanvas_MouseMove"
             MouseLeftButtonUp="OverlayCanvas_MouseLeftButtonUp" />
 </Window>

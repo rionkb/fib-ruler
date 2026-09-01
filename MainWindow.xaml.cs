@@ -169,6 +169,63 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private void OverlayCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_mode != RulerMode.Edit || !IsContextMenuTarget(e.OriginalSource))
+        {
+            return;
+        }
+
+        _dragTarget = DragTarget.None;
+        if (OverlayCanvas.IsMouseCaptured)
+        {
+            OverlayCanvas.ReleaseMouseCapture();
+        }
+
+        ContextMenu menu = CreateFibLevelsMenu();
+        menu.PlacementTarget = OverlayCanvas;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    private static bool IsContextMenuTarget(object source) =>
+        source is Ellipse handle && handle.Tag is DragTarget.A or DragTarget.B
+        || source is Line line && line.Tag is DragTarget.WholeRuler;
+
+    private ContextMenu CreateFibLevelsMenu()
+    {
+        ContextMenu menu = new();
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Fib Levels",
+            IsEnabled = false
+        });
+
+        foreach (FibLevel level in _levels)
+        {
+            MenuItem item = new()
+            {
+                Header = level.Label,
+                IsCheckable = true,
+                IsChecked = level.Enabled,
+                Tag = level
+            };
+            item.Click += FibLevelMenuItem_Click;
+            menu.Items.Add(item);
+        }
+
+        return menu;
+    }
+
+    private void FibLevelMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: FibLevel level } item)
+        {
+            level.Enabled = item.IsChecked;
+            UpdateRulerVisuals();
+        }
+    }
+
     private void UpdateRulerVisuals()
     {
         OverlayCanvas.Children.Clear();
@@ -216,6 +273,11 @@ public partial class MainWindow : Window
 
         foreach ((double lower, double upper, Color color) in bands)
         {
+            if (!IsLevelEnabled(lower) || !IsLevelEnabled(upper))
+            {
+                continue;
+            }
+
             double firstY = FibCalculator.CalculateY(_pointAY, _pointBY, lower);
             double secondY = FibCalculator.CalculateY(_pointAY, _pointBY, upper);
             Rectangle band = new()
@@ -230,6 +292,9 @@ public partial class MainWindow : Window
             OverlayCanvas.Children.Add(band);
         }
     }
+
+    private bool IsLevelEnabled(double ratio) =>
+        _levels.First(level => level.Ratio == ratio).Enabled;
 
     private void AddFibLines(double leftX, double rightX)
     {

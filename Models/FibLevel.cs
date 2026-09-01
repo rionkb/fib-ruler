@@ -1,7 +1,20 @@
 namespace FibRuler.Models;
 
-public sealed record FibLevel(double Ratio, bool Enabled, string Label)
+public sealed class FibLevel
 {
+    public FibLevel(double ratio, bool enabled, string label)
+    {
+        Ratio = ratio;
+        Enabled = enabled;
+        Label = label;
+    }
+
+    public double Ratio { get; }
+
+    public bool Enabled { get; set; }
+
+    public string Label { get; }
+
     public static IReadOnlyList<FibLevel> CreateDefaults() =>
     [
         Create(-1.618), Create(-1.000), Create(-0.618), Create(-0.382), Create(-0.236),
