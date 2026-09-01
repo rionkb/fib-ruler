@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private double _pointBY = 300;
     private readonly IReadOnlyList<FibLevel> _levels = FibLevel.CreateDefaults();
     private readonly HotkeyService _hotkeyService = new();
+    private readonly SettingsService _settingsService = new();
     private RulerMode _mode = RulerMode.Edit;
     private DragTarget _dragTarget;
     private Point _wholeDragStartMouse;
@@ -49,6 +50,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
+        SaveSettings();
         _hotkeyService.Dispose();
     }
 
@@ -79,7 +81,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Window_Loaded(object sender, RoutedEventArgs e) => UpdateRulerVisuals();
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        RestoreSettings();
+        UpdateRulerVisuals();
+    }
 
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -165,6 +171,7 @@ public partial class MainWindow : Window
             OverlayCanvas.ReleaseMouseCapture();
         }
         OverlayCanvas.Cursor = Cursors.Arrow;
+        SaveSettings();
 
         e.Handled = true;
     }
@@ -223,8 +230,61 @@ public partial class MainWindow : Window
         {
             level.Enabled = item.IsChecked;
             UpdateRulerVisuals();
+            SaveSettings();
         }
     }
+
+    private void RestoreSettings()
+    {
+        AppSettings? settings = _settingsService.Load();
+        if (settings is null)
+        {
+            return;
+        }
+
+        if (IsFinitePoint(settings.PointA))
+        {
+            Point pointA = ClampPointToOverlayBounds(new Point(settings.PointA.X, settings.PointA.Y));
+            _pointAX = pointA.X;
+            _pointAY = pointA.Y;
+        }
+
+        if (IsFinitePoint(settings.PointB))
+        {
+            Point pointB = ClampPointToOverlayBounds(new Point(settings.PointB.X, settings.PointB.Y));
+            _pointBX = pointB.X;
+            _pointBY = pointB.Y;
+        }
+
+        foreach (FibLevelSettings savedLevel in settings.FibLevels)
+        {
+            FibLevel? level = _levels.FirstOrDefault(item => Math.Abs(item.Ratio - savedLevel.Ratio) <= 0.0001);
+            if (level is not null)
+            {
+                level.Enabled = savedLevel.Enabled;
+            }
+        }
+    }
+
+    private void SaveSettings()
+    {
+        AppSettings settings = new()
+        {
+            SettingsVersion = 1,
+            PointA = new PointSettings { X = _pointAX, Y = _pointAY },
+            PointB = new PointSettings { X = _pointBX, Y = _pointBY },
+            FibLevels = _levels.Select(level => new FibLevelSettings
+            {
+                Ratio = level.Ratio,
+                Enabled = level.Enabled
+            }).ToList()
+        };
+
+        _settingsService.Save(settings);
+    }
+
+    private static bool IsFinitePoint(PointSettings? point) =>
+        point is not null && double.IsFinite(point.X) && double.IsFinite(point.Y);
 
     private void UpdateRulerVisuals()
     {
