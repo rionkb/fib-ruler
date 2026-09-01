@@ -1,6 +1,7 @@
 # Build output
 bin/
 obj/
+dist/
 
 # Visual Studio and Rider user files
 .vs/
