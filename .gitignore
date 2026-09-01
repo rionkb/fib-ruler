@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio and Rider user files
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# Test results and local tooling
+TestResults/
+*.nupkg
+
+# OS files
+.DS_Store
+Thumbs.db
