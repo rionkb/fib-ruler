@@ -21,7 +21,7 @@ public partial class MainWindow : Window
     private double _pointAY = 700;
     private double _pointBX = 650;
     private double _pointBY = 300;
-    private readonly IReadOnlyList<FibLevel> _levels = FibLevel.CreateDefaults();
+    private readonly List<FibLevel> _levels = FibLevel.CreateDefaults().ToList();
     private readonly HotkeyService _hotkeyService = new();
     private readonly SettingsService _settingsService = new();
     private RulerMode _mode = RulerMode.Edit;
@@ -208,7 +208,15 @@ public partial class MainWindow : Window
             IsEnabled = false
         });
 
-        foreach (FibLevel level in _levels)
+        MenuItem addItem = new()
+        {
+            Header = "Add Level..."
+        };
+        addItem.Click += AddFibLevelMenuItem_Click;
+        menu.Items.Add(addItem);
+        menu.Items.Add(new Separator());
+
+        foreach (FibLevel level in _levels.OrderBy(item => item.Ratio))
         {
             MenuItem item = new()
             {
@@ -221,7 +229,74 @@ public partial class MainWindow : Window
             menu.Items.Add(item);
         }
 
+        menu.Items.Add(new Separator());
+        MenuItem deleteMenu = new()
+        {
+            Header = "Delete Level",
+            IsEnabled = _levels.Count > 0
+        };
+        foreach (FibLevel level in _levels.OrderBy(item => item.Ratio))
+        {
+            MenuItem deleteItem = new()
+            {
+                Header = level.Label,
+                Tag = level
+            };
+            deleteItem.Click += DeleteFibLevelMenuItem_Click;
+            deleteMenu.Items.Add(deleteItem);
+        }
+
+        menu.Items.Add(deleteMenu);
+
         return menu;
+    }
+
+    private void AddFibLevelMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        AddFibLevelWindow dialog = new() { Owner = this };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (_levels.Any(level => Math.Abs(level.Ratio - dialog.Ratio) <= 0.0001))
+        {
+            MessageBox.Show(
+                this,
+                "そのFibレベルは既に存在します。",
+                "Duplicate Fib Level",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        _levels.Add(FibLevel.Create(dialog.Ratio));
+        _levels.Sort(static (left, right) => left.Ratio.CompareTo(right.Ratio));
+        UpdateRulerVisuals();
+        SaveSettings();
+    }
+
+    private void DeleteFibLevelMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: FibLevel level } || !_levels.Contains(level))
+        {
+            return;
+        }
+
+        MessageBoxResult result = MessageBox.Show(
+            this,
+            $"Delete {level.Label}?",
+            "Delete Fib Level",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _levels.Remove(level);
+        UpdateRulerVisuals();
+        SaveSettings();
     }
 
     private void FibLevelMenuItem_Click(object sender, RoutedEventArgs e)
@@ -256,13 +331,33 @@ public partial class MainWindow : Window
             _pointBY = pointB.Y;
         }
 
+        if (settings.FibLevels.Count == 0)
+        {
+            _levels.Clear();
+            return;
+        }
+
+        List<FibLevel> restoredLevels = [];
         foreach (FibLevelSettings savedLevel in settings.FibLevels)
         {
-            FibLevel? level = _levels.FirstOrDefault(item => Math.Abs(item.Ratio - savedLevel.Ratio) <= 0.0001);
-            if (level is not null)
+            if (!double.IsFinite(savedLevel.Ratio))
             {
-                level.Enabled = savedLevel.Enabled;
+                continue;
             }
+
+            double ratio = FibLevel.NormalizeRatio(savedLevel.Ratio);
+            if (restoredLevels.Any(level => Math.Abs(level.Ratio - ratio) <= 0.0001))
+            {
+                continue;
+            }
+
+            restoredLevels.Add(FibLevel.Create(ratio, savedLevel.Enabled));
+        }
+
+        if (restoredLevels.Count > 0)
+        {
+            _levels.Clear();
+            _levels.AddRange(restoredLevels.OrderBy(level => level.Ratio));
         }
     }
 
@@ -354,7 +449,7 @@ public partial class MainWindow : Window
     }
 
     private bool IsLevelEnabled(double ratio) =>
-        _levels.First(level => level.Ratio == ratio).Enabled;
+        _levels.Any(level => Math.Abs(level.Ratio - ratio) <= 0.0001 && level.Enabled);
 
     private void AddFibLines(double leftX, double rightX)
     {
