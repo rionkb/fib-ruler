@@ -25,6 +25,9 @@ public partial class MainWindow : Window
     private readonly HotkeyService _hotkeyService = new();
     private RulerMode _mode = RulerMode.Edit;
     private DragTarget _dragTarget;
+    private Point _wholeDragStartMouse;
+    private Point _wholeDragStartA;
+    private Point _wholeDragStartB;
 
     public MainWindow()
     {
@@ -90,15 +93,30 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.OriginalSource is not Ellipse handle || handle.Tag is not DragTarget target)
+        if (e.OriginalSource is Ellipse handle && handle.Tag is DragTarget target)
         {
-            _dragTarget = DragTarget.None;
+            _dragTarget = target;
+            OverlayCanvas.CaptureMouse();
+            e.Handled = true;
             return;
         }
 
-        _dragTarget = target;
-        OverlayCanvas.CaptureMouse();
-        e.Handled = true;
+        if (e.OriginalSource is Line line && line.Tag is DragTarget.WholeRuler)
+        {
+            _dragTarget = DragTarget.WholeRuler;
+            _wholeDragStartMouse = e.GetPosition(OverlayCanvas);
+            _wholeDragStartA = new Point(_pointAX, _pointAY);
+            _wholeDragStartB = new Point(_pointBX, _pointBY);
+            OverlayCanvas.Cursor = Cursors.SizeAll;
+            OverlayCanvas.CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
+        if (_dragTarget != DragTarget.None)
+        {
+            _dragTarget = DragTarget.None;
+        }
     }
 
     private void OverlayCanvas_MouseMove(object sender, MouseEventArgs e)
@@ -108,16 +126,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        Point position = ClampPointToOverlayBounds(e.GetPosition(OverlayCanvas));
+        Point position = e.GetPosition(OverlayCanvas);
         if (_dragTarget == DragTarget.A)
         {
+            position = ClampPointToOverlayBounds(position);
             _pointAX = position.X;
             _pointAY = position.Y;
         }
         else if (_dragTarget == DragTarget.B)
         {
+            position = ClampPointToOverlayBounds(position);
             _pointBX = position.X;
             _pointBY = position.Y;
+        }
+        else if (_dragTarget == DragTarget.WholeRuler)
+        {
+            Point delta = ClampWholeRulerDelta(position - _wholeDragStartMouse);
+            _pointAX = _wholeDragStartA.X + delta.X;
+            _pointAY = _wholeDragStartA.Y + delta.Y;
+            _pointBX = _wholeDragStartB.X + delta.X;
+            _pointBY = _wholeDragStartB.Y + delta.Y;
         }
 
         UpdateRulerVisuals();
@@ -136,6 +164,7 @@ public partial class MainWindow : Window
         {
             OverlayCanvas.ReleaseMouseCapture();
         }
+        OverlayCanvas.Cursor = Cursors.Arrow;
 
         e.Handled = true;
     }
@@ -158,6 +187,7 @@ public partial class MainWindow : Window
         AddFibLines(leftX, rightX);
         AddLine(_pointAX, _pointAY, _pointBX, _pointBY,
             new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1);
+        AddWholeRulerHitArea();
         AddFibLabels(leftX);
         AddPoint(_pointAX, _pointAY, Brushes.DodgerBlue, DragTarget.A);
         AddPoint(_pointBX, _pointBY, Brushes.OrangeRed, DragTarget.B);
@@ -232,15 +262,49 @@ public partial class MainWindow : Window
 
     private Point ClampPointToOverlayBounds(Point point)
     {
-        double edgePadding = HandleDiameter / 2 + HandleEdgeMargin;
-        double minX = edgePadding;
-        double minY = edgePadding;
-        double maxX = Math.Max(minX, ActualWidth - edgePadding);
-        double maxY = Math.Max(minY, ActualHeight - edgePadding);
+        (double minX, double maxX, double minY, double maxY) = GetHandleBounds();
 
         return new Point(
             Math.Clamp(point.X, minX, maxX),
             Math.Clamp(point.Y, minY, maxY));
+    }
+
+    private Point ClampWholeRulerDelta(Vector delta)
+    {
+        (double minX, double maxX, double minY, double maxY) = GetHandleBounds();
+        double minDeltaX = Math.Max(minX - _wholeDragStartA.X, minX - _wholeDragStartB.X);
+        double maxDeltaX = Math.Min(maxX - _wholeDragStartA.X, maxX - _wholeDragStartB.X);
+        double minDeltaY = Math.Max(minY - _wholeDragStartA.Y, minY - _wholeDragStartB.Y);
+        double maxDeltaY = Math.Min(maxY - _wholeDragStartA.Y, maxY - _wholeDragStartB.Y);
+
+        return new Point(
+            Math.Clamp(delta.X, minDeltaX, maxDeltaX),
+            Math.Clamp(delta.Y, minDeltaY, maxDeltaY));
+    }
+
+    private (double MinX, double MaxX, double MinY, double MaxY) GetHandleBounds()
+    {
+        double edgePadding = HandleDiameter / 2 + HandleEdgeMargin;
+        return (
+            edgePadding,
+            Math.Max(edgePadding, ActualWidth - edgePadding),
+            edgePadding,
+            Math.Max(edgePadding, ActualHeight - edgePadding));
+    }
+
+    private void AddWholeRulerHitArea()
+    {
+        OverlayCanvas.Children.Add(new Line
+        {
+            X1 = _pointAX,
+            Y1 = _pointAY,
+            X2 = _pointBX,
+            Y2 = _pointBY,
+            Stroke = Brushes.Transparent,
+            StrokeThickness = 14,
+            Tag = DragTarget.WholeRuler,
+            Cursor = Cursors.SizeAll
+        });
     }
 
     private void AddLine(double x1, double y1, double x2, double y2, Brush brush, double thickness)
@@ -253,7 +317,8 @@ public partial class MainWindow : Window
             Y2 = y2,
             Stroke = brush,
             StrokeThickness = thickness,
-            SnapsToDevicePixels = true
+            SnapsToDevicePixels = true,
+            IsHitTestVisible = false
         });
     }
 
@@ -295,7 +360,8 @@ public partial class MainWindow : Window
     {
         None,
         A,
-        B
+        B,
+        WholeRuler
     }
 
 }
