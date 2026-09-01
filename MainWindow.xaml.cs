@@ -10,6 +10,11 @@ namespace FibRuler;
 
 public partial class MainWindow : Window
 {
+    private const double MinimumRulerWidth = 140;
+    private const double LabelWidth = 44;
+    private const double LabelMargin = 5;
+    private const double HandleDiameter = 12;
+
     private double _pointAX = 400;
     private double _pointAY = 700;
     private double _pointBX = 650;
@@ -136,19 +141,92 @@ public partial class MainWindow : Window
     private void UpdateRulerVisuals()
     {
         OverlayCanvas.Children.Clear();
-        AddLine(_pointAX, _pointAY, _pointBX, _pointBY, Brushes.White, 2);
+
+        double leftX = Math.Min(_pointAX, _pointBX);
+        double rulerWidth = Math.Max(MinimumRulerWidth, Math.Abs(_pointBX - _pointAX));
+        double rightX = Math.Max(_pointAX, _pointBX);
+        if (rulerWidth > rightX - leftX)
+        {
+            double centerX = (leftX + rightX) / 2;
+            leftX = centerX - rulerWidth / 2;
+            rightX = centerX + rulerWidth / 2;
+        }
+
+        AddFibBands(leftX, rulerWidth);
+        AddFibLines(leftX, rightX);
+        AddLine(_pointAX, _pointAY, _pointBX, _pointBY,
+            new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1);
+        AddFibLabels(leftX);
         AddPoint(_pointAX, _pointAY, Brushes.DodgerBlue, DragTarget.A);
         AddPoint(_pointBX, _pointBY, Brushes.OrangeRed, DragTarget.B);
-        AddLabel("A", _pointAX + 8, _pointAY + 8, Brushes.DodgerBlue);
-        AddLabel("B", _pointBX + 8, _pointBY - 26, Brushes.OrangeRed);
+        AddLabel("A", _pointAX + 6, _pointAY + 6, Brushes.DodgerBlue);
+        AddLabel("B", _pointBX + 6, _pointBY - 18, Brushes.OrangeRed);
+    }
 
+    private void AddFibBands(double leftX, double rulerWidth)
+    {
+        (double Lower, double Upper, Color Color)[] bands =
+        [
+            (0, 0.236, Color.FromRgb(220, 80, 80)),
+            (0.236, 0.382, Color.FromRgb(238, 145, 70)),
+            (0.382, 0.500, Color.FromRgb(230, 195, 75)),
+            (0.500, 0.618, Color.FromRgb(100, 180, 105)),
+            (0.618, 0.786, Color.FromRgb(70, 155, 205)),
+            (0.786, 1.000, Color.FromRgb(100, 125, 210)),
+            (1.000, 1.272, Color.FromRgb(155, 105, 205)),
+            (1.272, 1.414, Color.FromRgb(190, 95, 175)),
+            (1.414, 1.618, Color.FromRgb(215, 100, 140)),
+            (1.618, 2.000, Color.FromRgb(220, 125, 80)),
+            (2.000, 2.618, Color.FromRgb(205, 165, 70)),
+            (2.618, 3.618, Color.FromRgb(105, 170, 110)),
+            (3.618, 4.236, Color.FromRgb(90, 145, 195))
+        ];
+
+        foreach ((double lower, double upper, Color color) in bands)
+        {
+            double firstY = FibCalculator.CalculateY(_pointAY, _pointBY, lower);
+            double secondY = FibCalculator.CalculateY(_pointAY, _pointBY, upper);
+            Rectangle band = new()
+            {
+                Width = rulerWidth,
+                Height = Math.Abs(secondY - firstY),
+                Fill = new SolidColorBrush(Color.FromArgb(26, color.R, color.G, color.B)),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(band, leftX);
+            Canvas.SetTop(band, Math.Min(firstY, secondY));
+            OverlayCanvas.Children.Add(band);
+        }
+    }
+
+    private void AddFibLines(double leftX, double rightX)
+    {
         foreach (FibLevel level in _levels.Where(static item => item.Enabled))
         {
             double y = FibCalculator.CalculateY(_pointAY, _pointBY, level.Ratio);
-            AddLine(0, y, ActualWidth, y, Brushes.LimeGreen, 1.25);
-            AddLabel(level.Label, Math.Max(8, ActualWidth - 78), y - 18, Brushes.LimeGreen);
+            double thickness = level.Ratio is 0 or 1 ? 1.6 : 1.1;
+            AddLine(leftX, y, rightX, y, GetLevelBrush(level.Ratio), thickness);
         }
     }
+
+    private void AddFibLabels(double leftX)
+    {
+        double labelX = leftX - LabelWidth - LabelMargin;
+        foreach (FibLevel level in _levels.Where(static item => item.Enabled))
+        {
+            double y = FibCalculator.CalculateY(_pointAY, _pointBY, level.Ratio);
+            AddLabel(level.Label, labelX, y - 9, GetLevelBrush(level.Ratio), LabelWidth);
+        }
+    }
+
+    private static Brush GetLevelBrush(double ratio) => ratio switch
+    {
+        0 or 1 => Brushes.White,
+        0.5 or 0.618 => Brushes.Gold,
+        1.618 or 2.618 or 4.236 => Brushes.Orchid,
+        _ when ratio < 0 => Brushes.LightSteelBlue,
+        _ => Brushes.LightGreen
+    };
 
     private void AddLine(double x1, double y1, double x2, double y2, Brush brush, double thickness)
     {
@@ -166,32 +244,32 @@ public partial class MainWindow : Window
 
     private void AddPoint(double x, double y, Brush brush, DragTarget target)
     {
-        const double diameter = 18;
         Ellipse point = new()
         {
-            Width = diameter,
-            Height = diameter,
+            Width = HandleDiameter,
+            Height = HandleDiameter,
             Fill = brush,
             Stroke = Brushes.White,
             StrokeThickness = 1,
             Tag = target,
             Cursor = Cursors.SizeAll
         };
-        Canvas.SetLeft(point, x - diameter / 2);
-        Canvas.SetTop(point, y - diameter / 2);
+        Canvas.SetLeft(point, x - HandleDiameter / 2);
+        Canvas.SetTop(point, y - HandleDiameter / 2);
         OverlayCanvas.Children.Add(point);
     }
 
-    private void AddLabel(string text, double x, double y, Brush foreground)
+    private void AddLabel(string text, double x, double y, Brush foreground, double width = 24)
     {
         TextBlock label = new()
         {
             Text = text,
             Foreground = foreground,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Background = new SolidColorBrush(Color.FromArgb(150, 0, 0, 0)),
-            Padding = new Thickness(3, 1, 3, 1)
+            FontSize = width == LabelWidth ? 12 : 12,
+            FontWeight = FontWeights.SemiBold,
+            Width = width,
+            TextAlignment = width == LabelWidth ? TextAlignment.Right : TextAlignment.Left,
+            Padding = new Thickness(0, 1, 0, 1)
         };
         Canvas.SetLeft(label, x);
         Canvas.SetTop(label, y);

@@ -11,5 +11,5 @@ public sealed record FibLevel(double Ratio, bool Enabled, string Label)
     ];
 
     private static FibLevel Create(double ratio) =>
-        new(ratio, true, ratio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        new(ratio, true, ratio.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture));
 }
