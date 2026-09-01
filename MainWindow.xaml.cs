@@ -14,6 +14,8 @@ public partial class MainWindow : Window
     private const double LabelWidth = 44;
     private const double LabelMargin = 5;
     private const double HandleDiameter = 12;
+    private const double HandleEdgeMargin = 2;
+    private const double ScreenMargin = 6;
 
     private double _pointAX = 400;
     private double _pointAY = 700;
@@ -106,7 +108,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Point position = e.GetPosition(OverlayCanvas);
+        Point position = ClampPointToOverlayBounds(e.GetPosition(OverlayCanvas));
         if (_dragTarget == DragTarget.A)
         {
             _pointAX = position.X;
@@ -211,7 +213,7 @@ public partial class MainWindow : Window
 
     private void AddFibLabels(double leftX)
     {
-        double labelX = leftX - LabelWidth - LabelMargin;
+        double labelX = Math.Max(ScreenMargin, leftX - LabelWidth - LabelMargin);
         foreach (FibLevel level in _levels.Where(static item => item.Enabled))
         {
             double y = FibCalculator.CalculateY(_pointAY, _pointBY, level.Ratio);
@@ -227,6 +229,19 @@ public partial class MainWindow : Window
         _ when ratio < 0 => Brushes.LightSteelBlue,
         _ => Brushes.LightGreen
     };
+
+    private Point ClampPointToOverlayBounds(Point point)
+    {
+        double edgePadding = HandleDiameter / 2 + HandleEdgeMargin;
+        double minX = edgePadding;
+        double minY = edgePadding;
+        double maxX = Math.Max(minX, ActualWidth - edgePadding);
+        double maxY = Math.Max(minY, ActualHeight - edgePadding);
+
+        return new Point(
+            Math.Clamp(point.X, minX, maxX),
+            Math.Clamp(point.Y, minY, maxY));
+    }
 
     private void AddLine(double x1, double y1, double x2, double y2, Brush brush, double thickness)
     {
