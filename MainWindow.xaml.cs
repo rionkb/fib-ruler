@@ -23,40 +23,80 @@ public partial class MainWindow : Window
     private double _pointBY = 300;
     private readonly List<FibLevel> _levels = FibLevel.CreateDefaults().ToList();
     private readonly HotkeyService _hotkeyService = new();
+    private readonly MouseHookService _mouseHookService = new();
     private readonly SettingsService _settingsService = new();
     private RulerMode _mode = RulerMode.Edit;
+    private DrawingMode _drawingMode = DrawingMode.Idle;
+    private bool _hasPlacedRuler;
     private DragTarget _dragTarget;
     private Point _wholeDragStartMouse;
     private Point _wholeDragStartA;
     private Point _wholeDragStartB;
+    private Point _drawingStart;
+    private Point _drawingOriginalA;
+    private Point _drawingOriginalB;
+    private bool _drawingHadPlacedRuler;
 
     public MainWindow()
     {
         InitializeComponent();
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
-        _hotkeyService.HotkeyPressed += HotkeyService_HotkeyPressed;
+        _hotkeyService.EditLockHotkeyPressed += HotkeyService_EditLockHotkeyPressed;
+        _hotkeyService.DrawModeHotkeyPressed += HotkeyService_DrawModeHotkeyPressed;
+        _hotkeyService.EscapePressed += HotkeyService_EscapePressed;
+        _mouseHookService.DrawingStarted += MouseHookService_DrawingStarted;
+        _mouseHookService.DrawingMoved += MouseHookService_DrawingMoved;
+        _mouseHookService.DrawingCompleted += MouseHookService_DrawingCompleted;
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
         if (!_hotkeyService.Register(this))
         {
-            System.Diagnostics.Debug.WriteLine("Fib Ruler: Ctrl+Alt+Fは使用できません。別のアプリが登録済みの可能性があります。");
+            System.Diagnostics.Debug.WriteLine("Fib Ruler: いずれかのグローバルホットキーを登録できませんでした。");
         }
 
+        _mouseHookService.Start();
         ApplyMode(RulerMode.Edit);
     }
 
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
         SaveSettings();
+        _mouseHookService.Dispose();
         _hotkeyService.Dispose();
     }
 
-    private void HotkeyService_HotkeyPressed(object? sender, EventArgs e)
+    private void HotkeyService_EditLockHotkeyPressed(object? sender, EventArgs e)
     {
         ApplyMode(_mode == RulerMode.Edit ? RulerMode.Locked : RulerMode.Edit);
+    }
+
+    private void HotkeyService_DrawModeHotkeyPressed(object? sender, EventArgs e)
+    {
+        if (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing)
+        {
+            CancelDrawing();
+            return;
+        }
+
+        _drawingHadPlacedRuler = _hasPlacedRuler;
+        _drawingOriginalA = new Point(_pointAX, _pointAY);
+        _drawingOriginalB = new Point(_pointBX, _pointBY);
+        _drawingMode = DrawingMode.Armed;
+        _mouseHookService.SetDrawingModeEnabled(_mode == RulerMode.Edit);
+        _hotkeyService.SetEscapeEnabled(false);
+        ApplyInteractionState();
+        UpdateRulerVisuals();
+    }
+
+    private void HotkeyService_EscapePressed(object? sender, EventArgs e)
+    {
+        if (_drawingMode == DrawingMode.Drawing)
+        {
+            CancelDrawing();
+        }
     }
 
     private void ApplyMode(RulerMode mode)
@@ -69,21 +109,40 @@ public partial class MainWindow : Window
             {
                 OverlayCanvas.ReleaseMouseCapture();
             }
+
+            if (_drawingMode == DrawingMode.Drawing)
+            {
+                CancelDrawing();
+                return;
+            }
         }
+
+        ApplyInteractionState();
+    }
+
+    private void ApplyInteractionState()
+    {
+        bool drawingModeActive = _drawingMode is DrawingMode.Armed or DrawingMode.Drawing;
+        bool clickThrough = _mode == RulerMode.Locked || !_hasPlacedRuler || drawingModeActive;
 
         try
         {
-            WindowInteropService.SetClickThrough(this, _mode == RulerMode.Locked);
+            WindowInteropService.SetClickThrough(this, clickThrough);
         }
         catch (Exception exception)
         {
             System.Diagnostics.Debug.WriteLine($"Fib Ruler: モード切替に失敗しました。{exception}");
         }
+
+        _mouseHookService.SetDrawingModeEnabled(_mode == RulerMode.Edit && drawingModeActive);
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         RestoreSettings();
+        _drawingMode = DrawingMode.Idle;
+        _hasPlacedRuler = false;
+        ApplyInteractionState();
         UpdateRulerVisuals();
     }
 
@@ -94,7 +153,7 @@ public partial class MainWindow : Window
 
     private void OverlayCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_mode != RulerMode.Edit)
+        if (_mode != RulerMode.Edit || !_hasPlacedRuler || _drawingMode is DrawingMode.Armed or DrawingMode.Drawing)
         {
             return;
         }
@@ -178,7 +237,7 @@ public partial class MainWindow : Window
 
     private void OverlayCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_mode != RulerMode.Edit || !IsContextMenuTarget(e.OriginalSource))
+        if (_mode != RulerMode.Edit || !_hasPlacedRuler || !IsContextMenuTarget(e.OriginalSource))
         {
             return;
         }
@@ -193,6 +252,106 @@ public partial class MainWindow : Window
         menu.PlacementTarget = OverlayCanvas;
         menu.IsOpen = true;
         e.Handled = true;
+    }
+
+    private void MouseHookService_DrawingStarted(object? sender, MouseHookEventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(() => BeginDrawing(e.ScreenPosition));
+    }
+
+    private void MouseHookService_DrawingMoved(object? sender, MouseHookEventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(() => UpdateDrawingPreview(e.ScreenPosition));
+    }
+
+    private void MouseHookService_DrawingCompleted(object? sender, MouseHookEventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(() => CompleteDrawing(e.ScreenPosition));
+    }
+
+    private void BeginDrawing(Point screenPosition)
+    {
+        if (_mode != RulerMode.Edit || _drawingMode != DrawingMode.Armed)
+        {
+            return;
+        }
+
+        _drawingHadPlacedRuler = _hasPlacedRuler;
+        _drawingOriginalA = new Point(_pointAX, _pointAY);
+        _drawingOriginalB = new Point(_pointBX, _pointBY);
+        _drawingStart = ScreenToOverlayPoint(screenPosition);
+        _pointAX = _drawingStart.X;
+        _pointAY = _drawingStart.Y;
+        _pointBX = _drawingStart.X;
+        _pointBY = _drawingStart.Y;
+        _hasPlacedRuler = true;
+        _drawingMode = DrawingMode.Drawing;
+        _hotkeyService.SetEscapeEnabled(true);
+        ApplyInteractionState();
+        UpdateRulerVisuals();
+    }
+
+    private void UpdateDrawingPreview(Point screenPosition)
+    {
+        if (_mode != RulerMode.Edit || _drawingMode != DrawingMode.Drawing)
+        {
+            return;
+        }
+
+        Point position = ScreenToOverlayPoint(screenPosition);
+        _pointBX = position.X;
+        _pointBY = position.Y;
+        UpdateRulerVisuals();
+    }
+
+    private void CompleteDrawing(Point screenPosition)
+    {
+        if (_mode != RulerMode.Edit || _drawingMode != DrawingMode.Drawing)
+        {
+            return;
+        }
+
+        Point position = ScreenToOverlayPoint(screenPosition);
+        _pointBX = position.X;
+        _pointBY = position.Y;
+        _drawingMode = DrawingMode.Placed;
+        _hotkeyService.SetEscapeEnabled(false);
+        ApplyInteractionState();
+        UpdateRulerVisuals();
+        SaveSettings();
+    }
+
+    private void CancelDrawing()
+    {
+        if (_drawingMode != DrawingMode.Drawing && _drawingMode != DrawingMode.Armed)
+        {
+            return;
+        }
+
+        _mouseHookService.SetDrawingModeEnabled(false);
+        _hotkeyService.SetEscapeEnabled(false);
+        if (_drawingMode == DrawingMode.Drawing && _drawingHadPlacedRuler)
+        {
+            _pointAX = _drawingOriginalA.X;
+            _pointAY = _drawingOriginalA.Y;
+            _pointBX = _drawingOriginalB.X;
+            _pointBY = _drawingOriginalB.Y;
+            _hasPlacedRuler = true;
+        }
+        else if (!_drawingHadPlacedRuler)
+        {
+            _hasPlacedRuler = false;
+        }
+
+        _drawingMode = _hasPlacedRuler ? DrawingMode.Placed : DrawingMode.Idle;
+        ApplyInteractionState();
+        UpdateRulerVisuals();
+    }
+
+    private Point ScreenToOverlayPoint(Point screenPosition)
+    {
+        Point overlayPosition = PointFromScreen(screenPosition);
+        return ClampPointToOverlayBounds(overlayPosition);
     }
 
     private static bool IsContextMenuTarget(object source) =>
@@ -390,6 +549,10 @@ public partial class MainWindow : Window
     private void UpdateRulerVisuals()
     {
         OverlayCanvas.Children.Clear();
+        if (!_hasPlacedRuler)
+        {
+            return;
+        }
 
         double leftX = Math.Min(_pointAX, _pointBX);
         double rulerWidth = Math.Max(MinimumRulerWidth, Math.Abs(_pointBX - _pointAX));

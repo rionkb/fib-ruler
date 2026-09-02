@@ -10,9 +10,15 @@ public sealed class HotkeyService : IDisposable
 {
     private HwndSource? _source;
     private IntPtr _windowHandle;
-    private bool _registered;
+    private bool _editLockRegistered;
+    private bool _drawModeRegistered;
+    private bool _escapeRegistered;
 
-    public event EventHandler? HotkeyPressed;
+    public event EventHandler? EditLockHotkeyPressed;
+
+    public event EventHandler? DrawModeHotkeyPressed;
+
+    public event EventHandler? EscapePressed;
 
     public bool Register(Window window)
     {
@@ -26,31 +32,101 @@ public sealed class HotkeyService : IDisposable
         _source = HwndSource.FromHwnd(_windowHandle);
         _source?.AddHook(WindowMessageHook);
 
-        _registered = NativeMethods.RegisterHotKey(
+        _editLockRegistered = NativeMethods.RegisterHotKey(
             _windowHandle,
             NativeMethods.HotkeyId,
             NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModNoRepeat,
             NativeMethods.VirtualKeyF);
 
-        if (!_registered)
+        if (!_editLockRegistered)
         {
             int error = Marshal.GetLastWin32Error();
             Debug.WriteLine($"Fib Ruler: Ctrl+Alt+Fの登録に失敗しました。Win32エラー={error}");
-            _source?.RemoveHook(WindowMessageHook);
         }
 
-        return _registered;
+        _drawModeRegistered = NativeMethods.RegisterHotKey(
+            _windowHandle,
+            NativeMethods.DrawModeHotkeyId,
+            NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModNoRepeat,
+            NativeMethods.VirtualKeyD);
+        if (!_drawModeRegistered)
+        {
+            int error = Marshal.GetLastWin32Error();
+            Debug.WriteLine($"Fib Ruler: Ctrl+Alt+Dの登録に失敗しました。Win32エラー={error}");
+        }
+
+        return _editLockRegistered && _drawModeRegistered;
+    }
+
+    public bool SetEscapeEnabled(bool enabled)
+    {
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (!enabled)
+        {
+            if (_escapeRegistered)
+            {
+                if (!NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.EscapeHotkeyId))
+                {
+                    Debug.WriteLine($"Fib Ruler: Escホットキー解除に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+                }
+
+                _escapeRegistered = false;
+            }
+
+            return true;
+        }
+
+        if (_escapeRegistered)
+        {
+            return true;
+        }
+
+        _escapeRegistered = NativeMethods.RegisterHotKey(
+            _windowHandle,
+            NativeMethods.EscapeHotkeyId,
+            0,
+            NativeMethods.VirtualKeyEscape);
+        if (!_escapeRegistered)
+        {
+            Debug.WriteLine($"Fib Ruler: 描画キャンセル用Escの登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+        }
+
+        return _escapeRegistered;
     }
 
     public void Dispose()
     {
-        if (_registered)
+        if (_editLockRegistered)
         {
             if (!NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.HotkeyId))
             {
                 Debug.WriteLine($"Fib Ruler: ホットキー解除に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
             }
-            _registered = false;
+            _editLockRegistered = false;
+        }
+
+        if (_drawModeRegistered)
+        {
+            if (!NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawModeHotkeyId))
+            {
+                Debug.WriteLine($"Fib Ruler: 描画モードホットキー解除に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+            }
+
+            _drawModeRegistered = false;
+        }
+
+        if (_escapeRegistered)
+        {
+            if (!NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.EscapeHotkeyId))
+            {
+                Debug.WriteLine($"Fib Ruler: Escホットキー解除に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+            }
+
+            _escapeRegistered = false;
         }
 
         _source?.RemoveHook(WindowMessageHook);
@@ -60,10 +136,23 @@ public sealed class HotkeyService : IDisposable
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (message == NativeMethods.WmHotKey && wParam.ToInt32() == NativeMethods.HotkeyId)
+        if (message == NativeMethods.WmHotKey)
         {
-            HotkeyPressed?.Invoke(this, EventArgs.Empty);
-            handled = true;
+            switch (wParam.ToInt32())
+            {
+                case NativeMethods.HotkeyId:
+                    EditLockHotkeyPressed?.Invoke(this, EventArgs.Empty);
+                    handled = true;
+                    break;
+                case NativeMethods.DrawModeHotkeyId:
+                    DrawModeHotkeyPressed?.Invoke(this, EventArgs.Empty);
+                    handled = true;
+                    break;
+                case NativeMethods.EscapeHotkeyId:
+                    EscapePressed?.Invoke(this, EventArgs.Empty);
+                    handled = true;
+                    break;
+            }
         }
 
         return IntPtr.Zero;
