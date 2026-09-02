@@ -23,4 +23,6 @@ public sealed class FibLevelSettings
     public double Ratio { get; set; }
 
     public bool Enabled { get; set; }
+
+    public bool IsCustom { get; set; }
 }

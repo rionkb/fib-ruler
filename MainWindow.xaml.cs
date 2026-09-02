@@ -345,6 +345,11 @@ public partial class MainWindow : Window
                 continue;
             }
 
+            if (savedLevel.Ratio < 0 && !savedLevel.IsCustom)
+            {
+                continue;
+            }
+
             double ratio = FibLevel.NormalizeRatio(savedLevel.Ratio);
             if (restoredLevels.Any(level => Math.Abs(level.Ratio - ratio) <= 0.0001))
             {
@@ -371,7 +376,8 @@ public partial class MainWindow : Window
             FibLevels = _levels.Select(level => new FibLevelSettings
             {
                 Ratio = level.Ratio,
-                Enabled = level.Enabled
+                Enabled = level.Enabled,
+                IsCustom = !FibLevel.IsDefaultRatio(level.Ratio)
             }).ToList()
         };
 
@@ -398,13 +404,11 @@ public partial class MainWindow : Window
         AddFibBands(leftX, rulerWidth);
         AddFibLines(leftX, rightX);
         AddLine(_pointAX, _pointAY, _pointBX, _pointBY,
-            new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1);
+            new SolidColorBrush(Color.FromArgb(175, 190, 220, 245)), 1.1);
         AddWholeRulerHitArea();
         AddFibLabels(leftX);
-        AddPoint(_pointAX, _pointAY, Brushes.DodgerBlue, DragTarget.A);
-        AddPoint(_pointBX, _pointBY, Brushes.OrangeRed, DragTarget.B);
-        AddLabel("A", _pointAX + 6, _pointAY + 6, Brushes.DodgerBlue);
-        AddLabel("B", _pointBX + 6, _pointBY - 18, Brushes.OrangeRed);
+        AddPoint(_pointAX, _pointAY, Brushes.DeepSkyBlue, DragTarget.A);
+        AddPoint(_pointBX, _pointBY, Brushes.DeepSkyBlue, DragTarget.B);
     }
 
     private void AddFibBands(double leftX, double rulerWidth)
@@ -548,9 +552,9 @@ public partial class MainWindow : Window
         {
             Width = HandleDiameter,
             Height = HandleDiameter,
-            Fill = brush,
-            Stroke = Brushes.White,
-            StrokeThickness = 1,
+            Fill = Brushes.Transparent,
+            Stroke = brush,
+            StrokeThickness = 2,
             Tag = target,
             Cursor = Cursors.SizeAll
         };
