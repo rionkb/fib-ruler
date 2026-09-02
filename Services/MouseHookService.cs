@@ -103,7 +103,7 @@ public sealed class MouseHookService : IDisposable
             if (gestureActive && message == NativeMethods.WmMouseMove)
             {
                 Raise(DrawingMoved);
-                return new IntPtr(1);
+                return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
             }
 
             if (gestureActive && message == NativeMethods.WmLButtonUp)
