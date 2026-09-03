@@ -11,12 +11,9 @@ public sealed class HotkeyService : IDisposable
     private HwndSource? _source;
     private IntPtr _windowHandle;
     private bool _editLockRegistered;
-    private bool _drawModeRegistered;
     private bool _escapeRegistered;
 
     public event EventHandler? EditLockHotkeyPressed;
-
-    public event EventHandler? DrawModeHotkeyPressed;
 
     public event EventHandler? EscapePressed;
 
@@ -44,18 +41,7 @@ public sealed class HotkeyService : IDisposable
             Debug.WriteLine($"Fib Ruler: Ctrl+Alt+Fの登録に失敗しました。Win32エラー={error}");
         }
 
-        _drawModeRegistered = NativeMethods.RegisterHotKey(
-            _windowHandle,
-            NativeMethods.DrawModeHotkeyId,
-            NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModNoRepeat,
-            NativeMethods.VirtualKeyD);
-        if (!_drawModeRegistered)
-        {
-            int error = Marshal.GetLastWin32Error();
-            Debug.WriteLine($"Fib Ruler: Ctrl+Alt+Dの登録に失敗しました。Win32エラー={error}");
-        }
-
-        return _editLockRegistered && _drawModeRegistered;
+        return _editLockRegistered;
     }
 
     public bool SetEscapeEnabled(bool enabled)
@@ -109,16 +95,6 @@ public sealed class HotkeyService : IDisposable
             _editLockRegistered = false;
         }
 
-        if (_drawModeRegistered)
-        {
-            if (!NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawModeHotkeyId))
-            {
-                Debug.WriteLine($"Fib Ruler: 描画モードホットキー解除に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
-            }
-
-            _drawModeRegistered = false;
-        }
-
         if (_escapeRegistered)
         {
             if (!NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.EscapeHotkeyId))
@@ -142,10 +118,6 @@ public sealed class HotkeyService : IDisposable
             {
                 case NativeMethods.HotkeyId:
                     EditLockHotkeyPressed?.Invoke(this, EventArgs.Empty);
-                    handled = true;
-                    break;
-                case NativeMethods.DrawModeHotkeyId:
-                    DrawModeHotkeyPressed?.Invoke(this, EventArgs.Empty);
                     handled = true;
                     break;
                 case NativeMethods.EscapeHotkeyId:
