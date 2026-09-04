@@ -620,11 +620,12 @@ public partial class MainWindow : Window
         AddFibBands(leftX, rulerWidth);
         AddFibLines(leftX, rightX);
         AddLine(_pointAX, _pointAY, _pointBX, _pointBY,
-            new SolidColorBrush(Color.FromArgb(175, 190, 220, 245)), 1.1);
+            new SolidColorBrush(Color.FromArgb(179, 120, 123, 134)), 1.1);
         AddWholeRulerHitArea();
         AddFibLabels(leftX);
-        AddPoint(_pointAX, _pointAY, Brushes.DeepSkyBlue, DragTarget.A);
-        AddPoint(_pointBX, _pointBY, Brushes.DeepSkyBlue, DragTarget.B);
+        Brush anchorBrush = new SolidColorBrush(Color.FromRgb(41, 98, 255));
+        AddPoint(_pointAX, _pointAY, anchorBrush, DragTarget.A);
+        AddPoint(_pointBX, _pointBY, anchorBrush, DragTarget.B);
         if (_mode == RulerMode.Edit && _drawingMode == DrawingMode.Placed)
         {
             AddDeleteButton(rightX);
@@ -678,24 +679,24 @@ public partial class MainWindow : Window
 
     private void AddFibBands(double leftX, double rulerWidth)
     {
-        (double Lower, double Upper, Color Color)[] bands =
+        (double Lower, double Upper)[] bands =
         [
-            (0, 0.236, Color.FromRgb(220, 80, 80)),
-            (0.236, 0.382, Color.FromRgb(238, 145, 70)),
-            (0.382, 0.500, Color.FromRgb(230, 195, 75)),
-            (0.500, 0.618, Color.FromRgb(100, 180, 105)),
-            (0.618, 0.786, Color.FromRgb(70, 155, 205)),
-            (0.786, 1.000, Color.FromRgb(100, 125, 210)),
-            (1.000, 1.272, Color.FromRgb(155, 105, 205)),
-            (1.272, 1.414, Color.FromRgb(190, 95, 175)),
-            (1.414, 1.618, Color.FromRgb(215, 100, 140)),
-            (1.618, 2.000, Color.FromRgb(220, 125, 80)),
-            (2.000, 2.618, Color.FromRgb(205, 165, 70)),
-            (2.618, 3.618, Color.FromRgb(105, 170, 110)),
-            (3.618, 4.236, Color.FromRgb(90, 145, 195))
+            (0, 0.236),
+            (0.236, 0.382),
+            (0.382, 0.500),
+            (0.500, 0.618),
+            (0.618, 0.786),
+            (0.786, 1.000),
+            (1.000, 1.272),
+            (1.272, 1.414),
+            (1.414, 1.618),
+            (1.618, 2.000),
+            (2.000, 2.618),
+            (2.618, 3.618),
+            (3.618, 4.236)
         ];
 
-        foreach ((double lower, double upper, Color color) in bands)
+        foreach ((double lower, double upper) in bands)
         {
             if (!IsLevelEnabled(lower) || !IsLevelEnabled(upper))
             {
@@ -708,7 +709,7 @@ public partial class MainWindow : Window
             {
                 Width = rulerWidth,
                 Height = Math.Abs(secondY - firstY),
-                Fill = new SolidColorBrush(Color.FromArgb(26, color.R, color.G, color.B)),
+                Fill = new SolidColorBrush(Color.FromArgb(51, GetLevelColor(upper).R, GetLevelColor(upper).G, GetLevelColor(upper).B)),
                 IsHitTestVisible = false
             };
             Canvas.SetLeft(band, leftX);
@@ -740,13 +741,20 @@ public partial class MainWindow : Window
         }
     }
 
-    private static Brush GetLevelBrush(double ratio) => ratio switch
+    private static Brush GetLevelBrush(double ratio) => new SolidColorBrush(GetLevelColor(ratio));
+
+    private static Color GetLevelColor(double ratio) => ratio switch
     {
-        0 or 1 => Brushes.White,
-        0.5 or 0.618 => Brushes.Gold,
-        1.618 or 2.618 or 4.236 => Brushes.Orchid,
-        _ when ratio < 0 => Brushes.LightSteelBlue,
-        _ => Brushes.LightGreen
+        0 or 1 => Color.FromRgb(128, 128, 128),
+        0.236 or 2.000 or 2.618 => Color.FromRgb(242, 54, 69),
+        0.382 or 0.618 or 1.272 => Color.FromRgb(76, 175, 80),
+        0.500 => Color.FromRgb(255, 152, 0),
+        0.786 or 1.414 => Color.FromRgb(0, 188, 212),
+        1.618 => Color.FromRgb(41, 98, 255),
+        3.618 => Color.FromRgb(156, 39, 176),
+        4.236 => Color.FromRgb(233, 30, 99),
+        _ when ratio < 0 => Color.FromRgb(120, 123, 134),
+        _ => Color.FromRgb(76, 175, 80)
     };
 
     private Point ClampPointToOverlayBounds(Point point)
