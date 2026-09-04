@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private const double HandleDiameter = 12;
     private const double HandleEdgeMargin = 2;
     private const double ScreenMargin = 6;
+    private const double DeleteButtonSize = 24;
 
     private double _pointAX = 400;
     private double _pointAY = 700;
@@ -131,6 +132,7 @@ public partial class MainWindow : Window
         }
 
         ApplyInteractionState();
+        UpdateRulerVisuals();
     }
 
     private void ApplyInteractionState()
@@ -623,6 +625,55 @@ public partial class MainWindow : Window
         AddFibLabels(leftX);
         AddPoint(_pointAX, _pointAY, Brushes.DeepSkyBlue, DragTarget.A);
         AddPoint(_pointBX, _pointBY, Brushes.DeepSkyBlue, DragTarget.B);
+        if (_mode == RulerMode.Edit && _drawingMode == DrawingMode.Placed)
+        {
+            AddDeleteButton(rightX);
+        }
+    }
+
+    private void AddDeleteButton(double rightX)
+    {
+        Button deleteButton = new()
+        {
+            Content = "×",
+            Width = DeleteButtonSize,
+            Height = DeleteButtonSize,
+            Padding = new Thickness(0),
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            Background = new SolidColorBrush(Color.FromArgb(115, 30, 35, 45)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(150, 180, 210, 235)),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            ToolTip = "Delete Fib ruler"
+        };
+        deleteButton.Click += DeleteRulerButton_Click;
+        Canvas.SetLeft(deleteButton, Math.Max(ScreenMargin, rightX - DeleteButtonSize));
+        Canvas.SetTop(deleteButton, ScreenMargin);
+        OverlayCanvas.Children.Add(deleteButton);
+    }
+
+    private void DeleteRulerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_mode != RulerMode.Edit || !_hasPlacedRuler || _drawingMode != DrawingMode.Placed)
+        {
+            return;
+        }
+
+        if (OverlayCanvas.IsMouseCaptured)
+        {
+            OverlayCanvas.ReleaseMouseCapture();
+        }
+
+        _dragTarget = DragTarget.None;
+        OverlayCanvas.Cursor = Cursors.Arrow;
+        _drawingMode = DrawingMode.Idle;
+        _hasPlacedRuler = false;
+        ApplyInteractionState();
+        UpdateRulerVisuals();
+        SaveSettings();
+        e.Handled = true;
     }
 
     private void AddFibBands(double leftX, double rulerWidth)
