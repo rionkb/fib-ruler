@@ -11,7 +11,6 @@ namespace FibRuler;
 
 public partial class MainWindow : Window
 {
-    private const double MinimumRulerWidth = 140;
     private const double LabelWidth = 44;
     private const double LabelMargin = 5;
     private const double HandleDiameter = 12;
@@ -37,6 +36,15 @@ public partial class MainWindow : Window
     private Point _drawingOriginalA;
     private Point _drawingOriginalB;
     private bool _drawingHadPlacedRuler;
+    private ContextMenu? _fibLevelsMenu;
+    private bool _isToolEnabled;
+    private ToggleShortcutSettings _toggleShortcut = new();
+    private AppSettings? _startupSettings;
+
+    public bool IsToolEnabled => _isToolEnabled;
+    public string ToggleShortcutDisplay => _hotkeyService.ToggleShortcutDisplay;
+    public event EventHandler? ToolEnabledChanged;
+    public event EventHandler? ToggleShortcutChanged;
 
     public MainWindow()
     {
@@ -45,11 +53,18 @@ public partial class MainWindow : Window
         Closed += MainWindow_Closed;
         _hotkeyService.EditLockHotkeyPressed += HotkeyService_EditLockHotkeyPressed;
         _hotkeyService.EscapePressed += HotkeyService_EscapePressed;
+        _hotkeyService.ToggleHotkeyPressed += HotkeyService_ToggleHotkeyPressed;
         _keyboardHookService.ShiftTapped += KeyboardHookService_ShiftTapped;
+        _startupSettings = _settingsService.Load();
+        if (ShortcutValidator.TryParse(_startupSettings?.ToggleShortcut, out ToggleShortcutSettings shortcut))
+        {
+            _toggleShortcut = shortcut;
+        }
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
+        _hotkeyService.SetToggleShortcut(_toggleShortcut);
         if (!_hotkeyService.Register(this))
         {
             System.Diagnostics.Debug.WriteLine("Fib Ruler: いずれかのグローバルホットキーを登録できませんでした。");
@@ -61,6 +76,7 @@ public partial class MainWindow : Window
         }
 
         ApplyMode(RulerMode.Edit);
+        _hotkeyService.SetEditLockEnabled(false);
     }
 
     private void MainWindow_Closed(object? sender, EventArgs e)
@@ -72,11 +88,23 @@ public partial class MainWindow : Window
 
     private void HotkeyService_EditLockHotkeyPressed(object? sender, EventArgs e)
     {
+        if (!_isToolEnabled)
+        {
+            return;
+        }
+
         ApplyMode(_mode == RulerMode.Edit ? RulerMode.Locked : RulerMode.Edit);
     }
 
+    private void HotkeyService_ToggleHotkeyPressed(object? sender, EventArgs e) => ToggleToolEnabled();
+
     private void KeyboardHookService_ShiftTapped(object? sender, EventArgs e)
     {
+        if (!_isToolEnabled)
+        {
+            return;
+        }
+
         _ = Dispatcher.BeginInvoke(
             System.Windows.Threading.DispatcherPriority.Input,
             new Action(ToggleDrawMode));
@@ -84,7 +112,7 @@ public partial class MainWindow : Window
 
     private void ToggleDrawMode()
     {
-        if (_mode != RulerMode.Edit)
+        if (!_isToolEnabled || _mode != RulerMode.Edit)
         {
             return;
         }
@@ -99,7 +127,7 @@ public partial class MainWindow : Window
         _drawingOriginalA = new Point(_pointAX, _pointAY);
         _drawingOriginalB = new Point(_pointBX, _pointBY);
         _drawingMode = DrawingMode.Armed;
-        _hotkeyService.SetEscapeEnabled(true);
+        UpdateEscapeHotkey();
         ApplyInteractionState();
         UpdateRulerVisuals();
         PlayDrawModeSound(isOn: true);
@@ -107,9 +135,20 @@ public partial class MainWindow : Window
 
     private void HotkeyService_EscapePressed(object? sender, EventArgs e)
     {
+        if (!_isToolEnabled)
+        {
+            return;
+        }
+
         if (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing)
         {
             CancelDrawing();
+            return;
+        }
+
+        if (_mode == RulerMode.Edit && _drawingMode == DrawingMode.Placed && _hasPlacedRuler)
+        {
+            DeleteCurrentRuler();
         }
     }
 
@@ -133,12 +172,14 @@ public partial class MainWindow : Window
 
         ApplyInteractionState();
         UpdateRulerVisuals();
+        UpdateEscapeHotkey();
     }
 
     private void ApplyInteractionState()
     {
         bool drawingModeActive = _drawingMode is DrawingMode.Armed or DrawingMode.Drawing;
-        bool clickThrough = _mode == RulerMode.Locked || (_drawingMode == DrawingMode.Idle && !_hasPlacedRuler);
+        bool clickThrough = !_isToolEnabled || _mode == RulerMode.Locked || (_drawingMode == DrawingMode.Idle && !_hasPlacedRuler);
+        Topmost = _isToolEnabled && (_hasPlacedRuler || drawingModeActive || _mode == RulerMode.Locked);
 
         OverlayCanvas.Background = drawingModeActive
             ? new SolidColorBrush(Color.FromArgb(1, 0, 0, 0))
@@ -157,11 +198,64 @@ public partial class MainWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        RestoreSettings();
+        RestoreSettings(_startupSettings);
+        _startupSettings = null;
+        _isToolEnabled = false;
         _drawingMode = DrawingMode.Idle;
         _hasPlacedRuler = false;
         ApplyInteractionState();
         UpdateRulerVisuals();
+    }
+
+    public void ToggleToolEnabled() => SetToolEnabled(!_isToolEnabled);
+
+    public bool TryChangeToggleShortcut(ToggleShortcutSettings shortcut, out string error)
+    {
+        if (!_hotkeyService.TryChangeToggleShortcut(shortcut, out error))
+        {
+            return false;
+        }
+
+        _toggleShortcut = _hotkeyService.ToggleShortcut;
+        SaveSettings();
+        ToggleShortcutChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    private void SetToolEnabled(bool enabled)
+    {
+        if (_isToolEnabled == enabled)
+        {
+            return;
+        }
+
+        _isToolEnabled = enabled;
+        if (!enabled)
+        {
+            if (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing)
+            {
+                CancelDrawing(playSound: false);
+            }
+
+            CloseFibLevelsMenu();
+            _dragTarget = DragTarget.None;
+            if (OverlayCanvas.IsMouseCaptured)
+            {
+                OverlayCanvas.ReleaseMouseCapture();
+            }
+
+            OverlayCanvas.Cursor = Cursors.Arrow;
+            _hotkeyService.SetEditLockEnabled(false);
+        }
+        else
+        {
+            _hotkeyService.SetEditLockEnabled(true);
+        }
+
+        UpdateEscapeHotkey();
+        ApplyInteractionState();
+        UpdateRulerVisuals();
+        ToolEnabledChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -171,7 +265,7 @@ public partial class MainWindow : Window
 
     private void OverlayCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_mode != RulerMode.Edit)
+        if (!_isToolEnabled || _mode != RulerMode.Edit)
         {
             return;
         }
@@ -217,7 +311,7 @@ public partial class MainWindow : Window
 
     private void OverlayCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_mode == RulerMode.Edit
+        if (_isToolEnabled && _mode == RulerMode.Edit
             && _drawingMode == DrawingMode.Drawing
             && e.LeftButton == MouseButtonState.Pressed)
         {
@@ -226,7 +320,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_mode != RulerMode.Edit || _dragTarget == DragTarget.None || e.LeftButton != MouseButtonState.Pressed)
+        if (!_isToolEnabled || _mode != RulerMode.Edit || _dragTarget == DragTarget.None || e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
@@ -284,7 +378,7 @@ public partial class MainWindow : Window
 
     private void OverlayCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_mode != RulerMode.Edit
+        if (!_isToolEnabled || _mode != RulerMode.Edit
             || _drawingMode is DrawingMode.Armed or DrawingMode.Drawing
             || !_hasPlacedRuler
             || !IsContextMenuTarget(e.OriginalSource))
@@ -298,10 +392,25 @@ public partial class MainWindow : Window
             OverlayCanvas.ReleaseMouseCapture();
         }
 
+        if (_fibLevelsMenu is { IsOpen: true })
+        {
+            _fibLevelsMenu.IsOpen = false;
+        }
+
         ContextMenu menu = CreateFibLevelsMenu();
+        _fibLevelsMenu = menu;
+        menu.Closed += FibLevelsMenu_Closed;
         menu.PlacementTarget = OverlayCanvas;
         menu.IsOpen = true;
         e.Handled = true;
+    }
+
+    private void FibLevelsMenu_Closed(object? sender, RoutedEventArgs e)
+    {
+        if (sender is ContextMenu menu && ReferenceEquals(_fibLevelsMenu, menu))
+        {
+            _fibLevelsMenu = null;
+        }
     }
 
     private void BeginDrawing(Point overlayPosition)
@@ -321,7 +430,7 @@ public partial class MainWindow : Window
         _pointBY = drawingStart.Y;
         _hasPlacedRuler = true;
         _drawingMode = DrawingMode.Drawing;
-        _hotkeyService.SetEscapeEnabled(true);
+        UpdateEscapeHotkey();
         ApplyInteractionState();
         UpdateRulerVisuals();
     }
@@ -350,7 +459,7 @@ public partial class MainWindow : Window
         _pointBX = position.X;
         _pointBY = position.Y;
         _drawingMode = DrawingMode.Placed;
-        _hotkeyService.SetEscapeEnabled(false);
+        UpdateEscapeHotkey();
         if (OverlayCanvas.IsMouseCaptured)
         {
             OverlayCanvas.ReleaseMouseCapture();
@@ -362,14 +471,13 @@ public partial class MainWindow : Window
         PlayDrawModeSound(isOn: false);
     }
 
-    private void CancelDrawing()
+    private void CancelDrawing(bool playSound = true)
     {
         if (_drawingMode != DrawingMode.Drawing && _drawingMode != DrawingMode.Armed)
         {
             return;
         }
 
-        _hotkeyService.SetEscapeEnabled(false);
         if (OverlayCanvas.IsMouseCaptured)
         {
             OverlayCanvas.ReleaseMouseCapture();
@@ -390,9 +498,13 @@ public partial class MainWindow : Window
         }
 
         _drawingMode = _hasPlacedRuler ? DrawingMode.Placed : DrawingMode.Idle;
+        UpdateEscapeHotkey();
         ApplyInteractionState();
         UpdateRulerVisuals();
-        PlayDrawModeSound(isOn: false);
+        if (playSound)
+        {
+            PlayDrawModeSound(isOn: false);
+        }
     }
 
     private static void PlayDrawModeSound(bool isOn)
@@ -521,9 +633,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RestoreSettings()
+    private void RestoreSettings(AppSettings? settings)
     {
-        AppSettings? settings = _settingsService.Load();
         if (settings is null)
         {
             return;
@@ -590,7 +701,8 @@ public partial class MainWindow : Window
                 Ratio = level.Ratio,
                 Enabled = level.Enabled,
                 IsCustom = !FibLevel.IsDefaultRatio(level.Ratio)
-            }).ToList()
+            }).ToList(),
+            ToggleShortcut = _hotkeyService.ToggleShortcut
         };
 
         _settingsService.Save(settings);
@@ -602,21 +714,14 @@ public partial class MainWindow : Window
     private void UpdateRulerVisuals()
     {
         OverlayCanvas.Children.Clear();
-        if (!_hasPlacedRuler)
+        if (!_isToolEnabled || !_hasPlacedRuler)
         {
             return;
         }
 
         double leftX = Math.Min(_pointAX, _pointBX);
-        double rulerWidth = Math.Max(MinimumRulerWidth, Math.Abs(_pointBX - _pointAX));
+        double rulerWidth = Math.Abs(_pointBX - _pointAX);
         double rightX = Math.Max(_pointAX, _pointBX);
-        if (rulerWidth > rightX - leftX)
-        {
-            double centerX = (leftX + rightX) / 2;
-            leftX = centerX - rulerWidth / 2;
-            rightX = centerX + rulerWidth / 2;
-        }
-
         AddFibBands(leftX, rulerWidth);
         AddFibLines(leftX, rightX);
         AddLine(_pointAX, _pointAY, _pointBX, _pointBY,
@@ -657,6 +762,12 @@ public partial class MainWindow : Window
 
     private void DeleteRulerButton_Click(object sender, RoutedEventArgs e)
     {
+        DeleteCurrentRuler();
+        e.Handled = true;
+    }
+
+    private void DeleteCurrentRuler()
+    {
         if (_mode != RulerMode.Edit || !_hasPlacedRuler || _drawingMode != DrawingMode.Placed)
         {
             return;
@@ -671,10 +782,28 @@ public partial class MainWindow : Window
         OverlayCanvas.Cursor = Cursors.Arrow;
         _drawingMode = DrawingMode.Idle;
         _hasPlacedRuler = false;
+        UpdateEscapeHotkey();
         ApplyInteractionState();
         UpdateRulerVisuals();
         SaveSettings();
-        e.Handled = true;
+    }
+
+    private void UpdateEscapeHotkey()
+    {
+        bool enabled = _isToolEnabled && _mode == RulerMode.Edit
+            && (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing
+                or DrawingMode.Placed && _hasPlacedRuler);
+        _hotkeyService.SetEscapeEnabled(enabled);
+    }
+
+    private void CloseFibLevelsMenu()
+    {
+        if (_fibLevelsMenu is { IsOpen: true })
+        {
+            _fibLevelsMenu.IsOpen = false;
+        }
+
+        _fibLevelsMenu = null;
     }
 
     private void AddFibBands(double leftX, double rulerWidth)

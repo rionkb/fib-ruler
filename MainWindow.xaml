@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Fib Ruler" WindowState="Maximized" Left="0" Top="0"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
-        Background="Transparent" Topmost="True" ShowInTaskbar="True"
+        Background="Transparent" Topmost="True" ShowInTaskbar="False"
         Loaded="Window_Loaded" SizeChanged="Window_SizeChanged">
     <Canvas x:Name="OverlayCanvas"
             Background="Transparent"

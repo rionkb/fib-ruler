@@ -14,6 +14,9 @@ Windows上のあらゆるチャートへ重ねて使える、軽量なフィボ�
 - EDIT / LOCK、LOCK時のクリック透過
 - `Ctrl + Alt + F` でEDIT/LOCKを切り替え
 - Shift単押しでDraw Modeを切り替え
+- 起動時はControlWindowを表示し、ToolはOFFで開始
+- ControlWindowのON/OFFボタンでFibの表示・非表示を切り替え
+- デフォルトF8のglobal toggle（背後画面・ControlWindow最小化中も有効）
 - FibレベルのON/OFF
 - 任意Fibレベルの追加・削除
 - 配置済みFibの小さい削除ボタン（LOCK時は非表示）
@@ -24,7 +27,9 @@ Windows上のあらゆるチャートへ重ねて使える、軽量なフィボ�
 
 ### 起動時
 
-起動直後はFibを表示せず、通常のPC操作を邪魔しない状態で待機します。
+起動するとControlWindowが表示され、ToolはOFFで開始します。OFFはFibの削除ではなく非表示であり、ONに戻すと既存Fibを同じ位置へ復元します。
+
+ControlWindowは最小化中や背後画面の操作中でもglobal toggleを受け付けます。デフォルトのショートカットはF8です。
 
 ### Fibを新しく描く
 
@@ -62,6 +67,10 @@ Shift単押し → 左ドラッグで、既存Fibを新しいFibへ置き換え�
 
 LOCK中はFib表示を維持したまま、背後のブラウザ、TradingView、証券会社アプリなどを操作できます。
 もう一度 `Ctrl + Alt + F` を押すとEDITへ戻ります。
+
+### ControlWindow / Settings
+
+ControlWindowのSettingsからGlobal Toggle Shortcutを変更できます。選択したshortcutは保存されますが、ToolのON/OFF状態は保存されず、次回起動時は毎回OFFで開始します。
 
 ## 標準Fibレベル
 
@@ -108,7 +117,7 @@ Windows 10での実機検証はまだ行っていません。
 
 ## 現在のバージョン
 
-v0.4.1
+v0.5.0
 
 ## 注意事項
 

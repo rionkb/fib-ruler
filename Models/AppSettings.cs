@@ -9,6 +9,8 @@ public sealed class AppSettings
     public PointSettings PointB { get; set; } = new();
 
     public List<FibLevelSettings> FibLevels { get; set; } = [];
+
+    public ToggleShortcutSettings? ToggleShortcut { get; set; }
 }
 
 public sealed class PointSettings
