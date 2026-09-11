@@ -34,9 +34,11 @@ public partial class ControlWindow : Window
     private void UpdateUi()
     {
         bool enabled = _overlay.IsToolEnabled;
-        StatusText.Text = enabled ? "Status: ON" : "Status: OFF";
-        StatusText.Foreground = enabled ? new SolidColorBrush(Color.FromRgb(80, 200, 120)) : new SolidColorBrush(Color.FromRgb(174, 180, 192));
-        ToggleButton.Content = enabled ? "Turn Fib Ruler OFF" : "Turn Fib Ruler ON";
+        StatusText.Text = enabled ? "Overlay: Enabled" : "Overlay: Disabled";
+        StatusText.Foreground = enabled
+            ? new SolidColorBrush(Color.FromRgb(80, 200, 120))
+            : new SolidColorBrush(Color.FromRgb(174, 180, 192));
+        ToggleButton.Content = enabled ? "Disable Overlay" : "Enable Overlay";
         ShortcutText.Text = _overlay.ToggleShortcutDisplay;
     }
 

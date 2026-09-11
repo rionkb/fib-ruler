@@ -24,7 +24,6 @@ public partial class MainWindow : Window
     private double _pointBY = 300;
     private readonly List<FibLevel> _levels = FibLevel.CreateDefaults().ToList();
     private readonly HotkeyService _hotkeyService = new();
-    private readonly KeyboardHookService _keyboardHookService = new();
     private readonly SettingsService _settingsService = new();
     private RulerMode _mode = RulerMode.Edit;
     private DrawingMode _drawingMode = DrawingMode.Idle;
@@ -54,7 +53,8 @@ public partial class MainWindow : Window
         _hotkeyService.EditLockHotkeyPressed += HotkeyService_EditLockHotkeyPressed;
         _hotkeyService.EscapePressed += HotkeyService_EscapePressed;
         _hotkeyService.ToggleHotkeyPressed += HotkeyService_ToggleHotkeyPressed;
-        _keyboardHookService.ShiftTapped += KeyboardHookService_ShiftTapped;
+        _hotkeyService.DrawHotkeyPressed += HotkeyService_DrawHotkeyPressed;
+        _hotkeyService.DeleteHotkeyPressed += HotkeyService_DeleteHotkeyPressed;
         _startupSettings = _settingsService.Load();
         if (ShortcutValidator.TryParse(_startupSettings?.ToggleShortcut, out ToggleShortcutSettings shortcut))
         {
@@ -70,11 +70,6 @@ public partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine("Fib Ruler: いずれかのグローバルホットキーを登録できませんでした。");
         }
 
-        if (!_keyboardHookService.Start())
-        {
-            System.Diagnostics.Debug.WriteLine("Fib Ruler: Shift単押し検出を開始できませんでした。");
-        }
-
         ApplyMode(RulerMode.Edit);
         _hotkeyService.SetEditLockEnabled(false);
     }
@@ -83,7 +78,6 @@ public partial class MainWindow : Window
     {
         SaveSettings();
         _hotkeyService.Dispose();
-        _keyboardHookService.Dispose();
     }
 
     private void HotkeyService_EditLockHotkeyPressed(object? sender, EventArgs e)
@@ -98,16 +92,21 @@ public partial class MainWindow : Window
 
     private void HotkeyService_ToggleHotkeyPressed(object? sender, EventArgs e) => ToggleToolEnabled();
 
-    private void KeyboardHookService_ShiftTapped(object? sender, EventArgs e)
+    private void HotkeyService_DrawHotkeyPressed(object? sender, EventArgs e)
     {
-        if (!_isToolEnabled)
+        if (_isToolEnabled && _mode == RulerMode.Edit)
         {
-            return;
+            ToggleDrawMode();
         }
+    }
 
-        _ = Dispatcher.BeginInvoke(
-            System.Windows.Threading.DispatcherPriority.Input,
-            new Action(ToggleDrawMode));
+    private void HotkeyService_DeleteHotkeyPressed(object? sender, EventArgs e)
+    {
+        if (_isToolEnabled && _mode == RulerMode.Edit
+            && _drawingMode == DrawingMode.Placed && _hasPlacedRuler)
+        {
+            DeleteCurrentRuler();
+        }
     }
 
     private void ToggleDrawMode()
@@ -146,10 +145,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_mode == RulerMode.Edit && _drawingMode == DrawingMode.Placed && _hasPlacedRuler)
-        {
-            DeleteCurrentRuler();
-        }
     }
 
     private void ApplyMode(RulerMode mode)
@@ -166,13 +161,13 @@ public partial class MainWindow : Window
             if (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing)
             {
                 CancelDrawing();
-                return;
             }
         }
 
         ApplyInteractionState();
         UpdateRulerVisuals();
         UpdateEscapeHotkey();
+        _hotkeyService.SetEditActionsEnabled(_isToolEnabled && _mode == RulerMode.Edit);
     }
 
     private void ApplyInteractionState()
@@ -255,6 +250,7 @@ public partial class MainWindow : Window
         UpdateEscapeHotkey();
         ApplyInteractionState();
         UpdateRulerVisuals();
+        _hotkeyService.SetEditActionsEnabled(_isToolEnabled && _mode == RulerMode.Edit);
         ToolEnabledChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -791,8 +787,7 @@ public partial class MainWindow : Window
     private void UpdateEscapeHotkey()
     {
         bool enabled = _isToolEnabled && _mode == RulerMode.Edit
-            && (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing
-                or DrawingMode.Placed && _hasPlacedRuler);
+            && (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing);
         _hotkeyService.SetEscapeEnabled(enabled);
     }
 

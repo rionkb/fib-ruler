@@ -14,11 +14,15 @@ public sealed class HotkeyService : IDisposable
     private bool _editLockRegistered;
     private bool _escapeRegistered;
     private bool _toggleRegistered;
+    private bool _drawRegistered;
+    private bool _deleteRegistered;
     private ToggleShortcutSettings _toggleShortcut = ShortcutValidator.CreateDefault();
 
     public event EventHandler? EditLockHotkeyPressed;
     public event EventHandler? EscapePressed;
     public event EventHandler? ToggleHotkeyPressed;
+    public event EventHandler? DrawHotkeyPressed;
+    public event EventHandler? DeleteHotkeyPressed;
     public ToggleShortcutSettings ToggleShortcut => Clone(_toggleShortcut);
     public string ToggleShortcutDisplay => ShortcutValidator.Format(_toggleShortcut);
 
@@ -109,6 +113,54 @@ public sealed class HotkeyService : IDisposable
         return _escapeRegistered;
     }
 
+    public bool SetEditActionsEnabled(bool enabled)
+    {
+        if (!enabled)
+        {
+            UnregisterEditActions();
+            return true;
+        }
+
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (_drawRegistered && _deleteRegistered)
+        {
+            return true;
+        }
+
+        UnregisterEditActions();
+        bool drawRegistered = NativeMethods.RegisterHotKey(
+            _windowHandle,
+            NativeMethods.DrawHotkeyId,
+            NativeMethods.ModShift | NativeMethods.ModNoRepeat,
+            NativeMethods.VirtualKeyA);
+        if (!drawRegistered)
+        {
+            Debug.WriteLine($"Fib Ruler: Shift+Aの登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+            return false;
+        }
+
+        bool deleteRegistered = NativeMethods.RegisterHotKey(
+            _windowHandle,
+            NativeMethods.DeleteHotkeyId,
+            NativeMethods.ModShift | NativeMethods.ModNoRepeat,
+            NativeMethods.VirtualKeyD);
+        if (!deleteRegistered)
+        {
+            int win32Error = Marshal.GetLastWin32Error();
+            NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawHotkeyId);
+            Debug.WriteLine($"Fib Ruler: Shift+Dの登録に失敗しました。Win32エラー={win32Error}");
+            return false;
+        }
+
+        _drawRegistered = true;
+        _deleteRegistered = true;
+        return true;
+    }
+
     public void Dispose()
     {
         if (_windowHandle != IntPtr.Zero)
@@ -116,11 +168,15 @@ public sealed class HotkeyService : IDisposable
             if (_toggleRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.ToggleHotkeyId);
             if (_editLockRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.HotkeyId);
             if (_escapeRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.EscapeHotkeyId);
+            if (_drawRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawHotkeyId);
+            if (_deleteRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DeleteHotkeyId);
         }
 
         _toggleRegistered = false;
         _editLockRegistered = false;
         _escapeRegistered = false;
+        _drawRegistered = false;
+        _deleteRegistered = false;
         _source?.RemoveHook(WindowMessageHook);
         _source = null;
         _windowHandle = IntPtr.Zero;
@@ -143,9 +199,23 @@ public sealed class HotkeyService : IDisposable
                 case NativeMethods.ToggleHotkeyId: ToggleHotkeyPressed?.Invoke(this, EventArgs.Empty); handled = true; break;
                 case NativeMethods.HotkeyId: EditLockHotkeyPressed?.Invoke(this, EventArgs.Empty); handled = true; break;
                 case NativeMethods.EscapeHotkeyId: EscapePressed?.Invoke(this, EventArgs.Empty); handled = true; break;
+                case NativeMethods.DrawHotkeyId: DrawHotkeyPressed?.Invoke(this, EventArgs.Empty); handled = true; break;
+                case NativeMethods.DeleteHotkeyId: DeleteHotkeyPressed?.Invoke(this, EventArgs.Empty); handled = true; break;
             }
         }
         return IntPtr.Zero;
+    }
+
+    private void UnregisterEditActions()
+    {
+        if (_windowHandle != IntPtr.Zero)
+        {
+            if (_drawRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawHotkeyId);
+            if (_deleteRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DeleteHotkeyId);
+        }
+
+        _drawRegistered = false;
+        _deleteRegistered = false;
     }
 
     private static ToggleShortcutSettings Clone(ToggleShortcutSettings shortcut) => new()

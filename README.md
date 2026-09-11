@@ -7,13 +7,14 @@ Windows上のあらゆるチャートへ重ねて使える、軽量なフィボ�
 
 - TradingView等の特定サービスに依存しない
 - Windows上の任意のチャートへ重ねて表示
-- 透明・常に最前面
+- Fib Overlayは透明・常に最前面（ControlWindowは通常のウィンドウ）
 - 2点を基準にFibラインを表示
 - 0～4.236の標準Fibと1.0以上のExtension
 - A/B個別ドラッグ、定規全体ドラッグ
 - EDIT / LOCK、LOCK時のクリック透過
 - `Ctrl + Alt + F` でEDIT/LOCKを切り替え
-- Shift単押しでDraw Modeを切り替え
+- `Shift + A` でDraw Modeを開始
+- `Shift + D` で配置済みFibを削除
 - 起動時はControlWindowを表示し、ToolはOFFで開始
 - ControlWindowのON/OFFボタンでFibの表示・非表示を切り替え
 - デフォルトF8のglobal toggle（背後画面・ControlWindow最小化中も有効）
@@ -31,15 +32,24 @@ Windows上のあらゆるチャートへ重ねて使える、軽量なフィボ�
 
 ControlWindowは最小化中や背後画面の操作中でもglobal toggleを受け付けます。デフォルトのショートカットはF8です。
 
+### ショートカット
+
+- `F8`（デフォルト）: Overlay ON / OFF
+- `Shift + A`: Fib描画開始
+- 左ドラッグ: Fib描画
+- `Shift + D`: 現在のFibを削除
+- `Esc`: 描画キャンセル
+- `Ctrl + Alt + F`: EDIT / LOCK
+- 右クリック: Fib設定
+
 ### Fibを新しく描く
 
-1. Shiftキーを単独で短く押してDraw ModeをONにします。
+1. `Shift + A` でDraw ModeをONにします。
 2. 左ドラッグします。
 3. ドラッグ開始位置が1点目（1.000）、マウスを離した位置が2点目（0.000）です。
 4. Fibが確定するとDraw Modeは自動的にOFFになります。
 
 Draw Mode中はFib Rulerがマウス入力を受け取り、通常の左ドラッグでFibを描画します。
-Shiftキーと他のキーを組み合わせた操作ではDraw Modeは切り替わりません。
 
 ### 描画キャンセル
 
@@ -47,7 +57,7 @@ Shiftキーと他のキーを組み合わせた操作ではDraw Modeは切り替
 
 ### 再描画
 
-Shift単押し → 左ドラッグで、既存Fibを新しいFibへ置き換えます。描画確定後はDraw Modeが自動的にOFFになり、現時点では複数Fibの同時表示には対応していません。
+`Shift + A` → 左ドラッグで、既存Fibを新しいFibへ置き換えます。描画確定後はDraw Modeが自動的にOFFになり、現時点では複数Fibの同時表示には対応していません。
 
 ### 端点移動
 
@@ -71,6 +81,8 @@ LOCK中はFib表示を維持したまま、背後のブラウザ、TradingView�
 ### ControlWindow / Settings
 
 ControlWindowのSettingsからGlobal Toggle Shortcutを変更できます。選択したshortcutは保存されますが、ToolのON/OFF状態は保存されず、次回起動時は毎回OFFで開始します。
+
+ControlWindowには描画操作として `Draw: Shift + A`、削除操作として `Delete: Shift + D` を表示します。
 
 ## 標準Fibレベル
 
