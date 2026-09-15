@@ -1,17 +1,81 @@
 <Window x:Class="FibRuler.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Fib Ruler Settings" Width="360" Height="230"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Title="Fib Ruler Settings" Width="520" Height="720"
+        MinWidth="460" MinHeight="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         ShowInTaskbar="False" Background="#17191F" Foreground="#E8EAED"
         PreviewKeyDown="Window_PreviewKeyDown">
-    <StackPanel Margin="24">
-        <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
-        <TextBlock Text="Toggle shortcut" Margin="0,18,0,4" Foreground="#AEB4C0" />
-        <StackPanel Orientation="Horizontal">
-            <TextBlock x:Name="CurrentShortcutText" VerticalAlignment="Center" FontSize="16" />
-            <Button x:Name="ChangeShortcutButton" Content="Change Shortcut" Margin="18,0,0,0" Padding="12,5" Click="ChangeShortcutButton_Click" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
+
+            <TextBlock Text="Shortcuts" Margin="0,22,0,10" FontSize="16" FontWeight="SemiBold" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="Draw" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="CurrentDrawShortcutText" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <Button Grid.Row="0" Grid.Column="2" x:Name="ChangeDrawShortcutButton" Content="Change" HorizontalAlignment="Left" Padding="12,5" Tag="Draw" Click="ChangeShortcutButton_Click" />
+                <TextBlock Grid.Row="1" Text="Delete" Margin="0,10,0,0" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="CurrentDeleteShortcutText" Margin="0,10,0,0" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <Button Grid.Row="1" Grid.Column="2" x:Name="ChangeDeleteShortcutButton" Content="Change" Margin="0,10,0,0" HorizontalAlignment="Left" Padding="12,5" Tag="Delete" Click="ChangeShortcutButton_Click" />
+            </Grid>
+
+            <Separator Margin="0,22,0,0" />
+            <TextBlock Text="Color Settings" Margin="0,18,0,10" FontSize="16" FontWeight="SemiBold" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="100" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="Base level (0.000 / 1.000)" VerticalAlignment="Center" />
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="BaseColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <TextBlock Grid.Row="1" Text="Red" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="RedColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <TextBlock Grid.Row="2" Text="Green" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" x:Name="GreenColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <TextBlock Grid.Row="3" Text="Orange" VerticalAlignment="Center" />
+                <TextBox Grid.Row="3" Grid.Column="1" x:Name="OrangeColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <TextBlock Grid.Row="4" Text="Cyan" VerticalAlignment="Center" />
+                <TextBox Grid.Row="4" Grid.Column="1" x:Name="CyanColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <TextBlock Grid.Row="5" Text="Blue" VerticalAlignment="Center" />
+                <TextBox Grid.Row="5" Grid.Column="1" x:Name="BlueColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <TextBlock Grid.Row="6" Text="Purple" VerticalAlignment="Center" />
+                <TextBox Grid.Row="6" Grid.Column="1" x:Name="PurpleColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <TextBlock Grid.Row="7" Text="Pink" VerticalAlignment="Center" />
+                <TextBox Grid.Row="7" Grid.Column="1" x:Name="PinkColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+            </Grid>
+
+            <TextBlock Text="Band Opacity" Margin="0,18,0,6" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="60" />
+                </Grid.ColumnDefinitions>
+                <Slider Grid.Column="0" x:Name="BandOpacitySlider" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.05" ValueChanged="BandOpacitySlider_ValueChanged" />
+                <TextBlock Grid.Column="1" x:Name="BandOpacityText" Margin="12,0,0,0" VerticalAlignment="Center" />
+            </Grid>
+            <Button Content="Reset to TradingView Colors" Margin="0,16,0,0" HorizontalAlignment="Left" Padding="12,5" Click="ResetColorsButton_Click" />
+
+            <TextBlock x:Name="HintText" Margin="0,18,0,0" Foreground="#AEB4C0" TextWrapping="Wrap" />
         </StackPanel>
-        <TextBlock x:Name="HintText" Margin="0,16,0,0" Foreground="#AEB4C0" TextWrapping="Wrap" />
-    </StackPanel>
+    </ScrollViewer>
 </Window>

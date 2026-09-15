@@ -12,7 +12,6 @@ public partial class ControlWindow : Window
         InitializeComponent();
         _overlay = overlay;
         _overlay.ToolEnabledChanged += Overlay_ToolEnabledChanged;
-        _overlay.ToggleShortcutChanged += Overlay_ToggleShortcutChanged;
         UpdateUi();
     }
 
@@ -29,8 +28,6 @@ public partial class ControlWindow : Window
 
     private void Overlay_ToolEnabledChanged(object? sender, EventArgs e) => UpdateUi();
 
-    private void Overlay_ToggleShortcutChanged(object? sender, EventArgs e) => UpdateUi();
-
     private void UpdateUi()
     {
         bool enabled = _overlay.IsToolEnabled;
@@ -39,13 +36,13 @@ public partial class ControlWindow : Window
             ? new SolidColorBrush(Color.FromRgb(80, 200, 120))
             : new SolidColorBrush(Color.FromRgb(174, 180, 192));
         ToggleButton.Content = enabled ? "Disable Overlay" : "Enable Overlay";
-        ShortcutText.Text = _overlay.ToggleShortcutDisplay;
+        DrawShortcutText.Text = _overlay.DrawShortcutDisplay;
+        DeleteShortcutText.Text = _overlay.DeleteShortcutDisplay;
     }
 
     protected override void OnClosed(EventArgs e)
     {
         _overlay.ToolEnabledChanged -= Overlay_ToolEnabledChanged;
-        _overlay.ToggleShortcutChanged -= Overlay_ToggleShortcutChanged;
         if (_overlay.IsVisible)
         {
             _overlay.Close();

@@ -5,7 +5,17 @@ namespace FibRuler.Services;
 
 public static class ShortcutValidator
 {
-    public static ToggleShortcutSettings CreateDefault() => new();
+    public static ToggleShortcutSettings CreateDefaultDraw() => new()
+    {
+        Key = "A",
+        Modifiers = ["Shift"]
+    };
+
+    public static ToggleShortcutSettings CreateDefaultDelete() => new()
+    {
+        Key = "D",
+        Modifiers = ["Shift"]
+    };
 
     public static bool TryCreate(Key key, ModifierKeys modifiers, out ToggleShortcutSettings? settings, out string error)
     {
@@ -18,7 +28,7 @@ public static class ShortcutValidator
             return false;
         }
 
-        if (!IsFunctionKey(key) && (modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) == ModifierKeys.None)
+        if (!IsFunctionKey(key) && (modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Shift | ModifierKeys.Windows)) == ModifierKeys.None)
         {
             error = "Letters and digits require Ctrl, Alt, or Windows.";
             return false;
@@ -36,7 +46,7 @@ public static class ShortcutValidator
 
     public static bool TryParse(ToggleShortcutSettings? saved, out ToggleShortcutSettings settings)
     {
-        settings = CreateDefault();
+        settings = new();
         if (saved is null || !Enum.TryParse(saved.Key, true, out Key key)
             || !TryCreate(key, ParseModifiers(saved.Modifiers), out ToggleShortcutSettings? parsed, out _))
         {
@@ -77,6 +87,41 @@ public static class ShortcutValidator
         virtualKey = (uint)KeyInterop.VirtualKeyFromKey(key);
         return true;
     }
+
+    public static bool TryValidateEditShortcuts(
+        ToggleShortcutSettings draw,
+        ToggleShortcutSettings delete,
+        out string error)
+    {
+        error = string.Empty;
+        if (!TryGetNative(draw, out _, out _, out error)) return false;
+        if (!TryGetNative(delete, out _, out _, out error)) return false;
+
+        if (AreEquivalent(draw, delete))
+        {
+            error = "Draw and Delete shortcuts must be different.";
+            return false;
+        }
+
+        if (IsEditLockShortcut(draw) || IsEditLockShortcut(delete))
+        {
+            error = "Draw and Delete shortcuts cannot be Ctrl + Alt + F.";
+            return false;
+        }
+
+        return true;
+    }
+
+    public static bool AreEquivalent(ToggleShortcutSettings first, ToggleShortcutSettings second) =>
+        TryGetNative(first, out uint firstModifiers, out uint firstKey, out _)
+        && TryGetNative(second, out uint secondModifiers, out uint secondKey, out _)
+        && firstModifiers == secondModifiers
+        && firstKey == secondKey;
+
+    private static bool IsEditLockShortcut(ToggleShortcutSettings shortcut) =>
+        TryGetNative(shortcut, out uint modifiers, out uint virtualKey, out _)
+        && modifiers == (0x0002 | 0x0001)
+        && virtualKey == KeyInterop.VirtualKeyFromKey(Key.F);
 
     private static ToggleShortcutSettings ToSettings(Key key, ModifierKeys modifiers) => new()
     {

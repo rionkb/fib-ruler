@@ -17,7 +17,6 @@ internal static class NativeMethods
     internal const uint VirtualKeyF = 0x46;
     internal const int HotkeyId = 0xF1B;
     internal const int EscapeHotkeyId = 0xF1D;
-    internal const int ToggleHotkeyId = 0xF1E;
     internal const int DrawHotkeyId = 0xF1F;
     internal const int DeleteHotkeyId = 0xF20;
 

@@ -13,24 +13,27 @@ public sealed class HotkeyService : IDisposable
     private IntPtr _windowHandle;
     private bool _editLockRegistered;
     private bool _escapeRegistered;
-    private bool _toggleRegistered;
     private bool _drawRegistered;
     private bool _deleteRegistered;
-    private ToggleShortcutSettings _toggleShortcut = ShortcutValidator.CreateDefault();
+    private ToggleShortcutSettings _drawShortcut = ShortcutValidator.CreateDefaultDraw();
+    private ToggleShortcutSettings _deleteShortcut = ShortcutValidator.CreateDefaultDelete();
 
     public event EventHandler? EditLockHotkeyPressed;
     public event EventHandler? EscapePressed;
-    public event EventHandler? ToggleHotkeyPressed;
     public event EventHandler? DrawHotkeyPressed;
     public event EventHandler? DeleteHotkeyPressed;
-    public ToggleShortcutSettings ToggleShortcut => Clone(_toggleShortcut);
-    public string ToggleShortcutDisplay => ShortcutValidator.Format(_toggleShortcut);
+    public ToggleShortcutSettings DrawShortcut => Clone(_drawShortcut);
+    public ToggleShortcutSettings DeleteShortcut => Clone(_deleteShortcut);
+    public string DrawShortcutDisplay => ShortcutValidator.Format(_drawShortcut);
+    public string DeleteShortcutDisplay => ShortcutValidator.Format(_deleteShortcut);
 
-    public void SetToggleShortcut(ToggleShortcutSettings shortcut)
+    public void SetEditShortcuts(ToggleShortcutSettings draw, ToggleShortcutSettings delete)
     {
-        if (ShortcutValidator.TryParse(shortcut, out ToggleShortcutSettings parsed))
+        if (ShortcutValidator.TryParse(draw, out ToggleShortcutSettings parsedDraw)
+            && ShortcutValidator.TryParse(delete, out ToggleShortcutSettings parsedDelete))
         {
-            _toggleShortcut = parsed;
+            _drawShortcut = parsedDraw;
+            _deleteShortcut = parsedDelete;
         }
     }
 
@@ -45,12 +48,6 @@ public sealed class HotkeyService : IDisposable
 
         _source = HwndSource.FromHwnd(_windowHandle);
         _source?.AddHook(WindowMessageHook);
-        if (!RegisterToggleShortcut(_toggleShortcut))
-        {
-            Debug.WriteLine("Fib Ruler: トグルホットキーの登録に失敗しました。設定画面から別のキーを選択してください。");
-            return false;
-        }
-
         return true;
     }
 
@@ -69,32 +66,6 @@ public sealed class HotkeyService : IDisposable
             NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModNoRepeat, NativeMethods.VirtualKeyF);
         if (!_editLockRegistered) Debug.WriteLine($"Fib Ruler: Ctrl+Alt+Fの登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
         return _editLockRegistered;
-    }
-
-    public bool TryChangeToggleShortcut(ToggleShortcutSettings shortcut, out string error)
-    {
-        error = string.Empty;
-        if (!ShortcutValidator.TryGetNative(shortcut, out uint modifiers, out uint virtualKey, out error)) return false;
-        if (_windowHandle == IntPtr.Zero)
-        {
-            error = "ウィンドウが初期化されていません。";
-            return false;
-        }
-
-        ToggleShortcutSettings previous = _toggleShortcut;
-        if (_toggleRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.ToggleHotkeyId);
-        _toggleRegistered = NativeMethods.RegisterHotKey(_windowHandle, NativeMethods.ToggleHotkeyId,
-            modifiers | NativeMethods.ModNoRepeat, virtualKey);
-        if (!_toggleRegistered)
-        {
-            int win32Error = Marshal.GetLastWin32Error();
-            _toggleRegistered = RegisterToggleShortcut(previous);
-            error = $"ショートカットを登録できませんでした。Win32エラー={win32Error}";
-            return false;
-        }
-
-        _toggleShortcut = Clone(shortcut);
-        return true;
     }
 
     public bool SetEscapeEnabled(bool enabled)
@@ -131,48 +102,52 @@ public sealed class HotkeyService : IDisposable
             return true;
         }
 
+        return RegisterEditActions(_drawShortcut, _deleteShortcut);
+    }
+
+    public bool TryChangeEditShortcuts(
+        ToggleShortcutSettings draw,
+        ToggleShortcutSettings delete,
+        out string error)
+    {
+        error = string.Empty;
+        if (!ShortcutValidator.TryValidateEditShortcuts(draw, delete, out error))
+        {
+            return false;
+        }
+
+        ToggleShortcutSettings previousDraw = _drawShortcut;
+        ToggleShortcutSettings previousDelete = _deleteShortcut;
+        bool wasEnabled = _drawRegistered || _deleteRegistered;
         UnregisterEditActions();
-        bool drawRegistered = NativeMethods.RegisterHotKey(
-            _windowHandle,
-            NativeMethods.DrawHotkeyId,
-            NativeMethods.ModShift | NativeMethods.ModNoRepeat,
-            NativeMethods.VirtualKeyA);
-        if (!drawRegistered)
+
+        _drawShortcut = Clone(draw);
+        _deleteShortcut = Clone(delete);
+        if (!wasEnabled || RegisterEditActions(_drawShortcut, _deleteShortcut))
         {
-            Debug.WriteLine($"Fib Ruler: Shift+Aの登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
-            return false;
+            return true;
         }
 
-        bool deleteRegistered = NativeMethods.RegisterHotKey(
-            _windowHandle,
-            NativeMethods.DeleteHotkeyId,
-            NativeMethods.ModShift | NativeMethods.ModNoRepeat,
-            NativeMethods.VirtualKeyD);
-        if (!deleteRegistered)
-        {
-            int win32Error = Marshal.GetLastWin32Error();
-            NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawHotkeyId);
-            Debug.WriteLine($"Fib Ruler: Shift+Dの登録に失敗しました。Win32エラー={win32Error}");
-            return false;
-        }
-
-        _drawRegistered = true;
-        _deleteRegistered = true;
-        return true;
+        int win32Error = Marshal.GetLastWin32Error();
+        _drawShortcut = previousDraw;
+        _deleteShortcut = previousDelete;
+        bool restored = RegisterEditActions(_drawShortcut, _deleteShortcut);
+        error = restored
+            ? $"ショートカットを登録できませんでした。Win32エラー={win32Error}"
+            : "ショートカットを登録できず、以前のショートカットも復元できませんでした。";
+        return false;
     }
 
     public void Dispose()
     {
         if (_windowHandle != IntPtr.Zero)
         {
-            if (_toggleRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.ToggleHotkeyId);
             if (_editLockRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.HotkeyId);
             if (_escapeRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.EscapeHotkeyId);
             if (_drawRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawHotkeyId);
             if (_deleteRegistered) NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DeleteHotkeyId);
         }
 
-        _toggleRegistered = false;
         _editLockRegistered = false;
         _escapeRegistered = false;
         _drawRegistered = false;
@@ -182,12 +157,47 @@ public sealed class HotkeyService : IDisposable
         _windowHandle = IntPtr.Zero;
     }
 
-    private bool RegisterToggleShortcut(ToggleShortcutSettings shortcut)
+    private bool RegisterEditActions(ToggleShortcutSettings draw, ToggleShortcutSettings delete)
     {
-        if (!ShortcutValidator.TryGetNative(shortcut, out uint modifiers, out uint virtualKey, out _)) return false;
-        _toggleRegistered = NativeMethods.RegisterHotKey(_windowHandle, NativeMethods.ToggleHotkeyId,
-            modifiers | NativeMethods.ModNoRepeat, virtualKey);
-        return _toggleRegistered;
+        if (!ShortcutValidator.TryGetNative(draw, out uint drawModifiers, out uint drawKey, out string drawError))
+        {
+            Debug.WriteLine($"Fib Ruler: Drawショートカットが無効です。{drawError}");
+            return false;
+        }
+
+        if (!ShortcutValidator.TryGetNative(delete, out uint deleteModifiers, out uint deleteKey, out string deleteError))
+        {
+            Debug.WriteLine($"Fib Ruler: Deleteショートカットが無効です。{deleteError}");
+            return false;
+        }
+
+        bool drawRegistered = NativeMethods.RegisterHotKey(
+            _windowHandle,
+            NativeMethods.DrawHotkeyId,
+            drawModifiers | NativeMethods.ModNoRepeat,
+            drawKey);
+        if (!drawRegistered)
+        {
+            Debug.WriteLine($"Fib Ruler: {ShortcutValidator.Format(draw)}の登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+            return false;
+        }
+
+        bool deleteRegistered = NativeMethods.RegisterHotKey(
+            _windowHandle,
+            NativeMethods.DeleteHotkeyId,
+            deleteModifiers | NativeMethods.ModNoRepeat,
+            deleteKey);
+        if (!deleteRegistered)
+        {
+            int win32Error = Marshal.GetLastWin32Error();
+            NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawHotkeyId);
+            Debug.WriteLine($"Fib Ruler: {ShortcutValidator.Format(delete)}の登録に失敗しました。Win32エラー={win32Error}");
+            return false;
+        }
+
+        _drawRegistered = true;
+        _deleteRegistered = true;
+        return true;
     }
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -196,7 +206,6 @@ public sealed class HotkeyService : IDisposable
         {
             switch (wParam.ToInt32())
             {
-                case NativeMethods.ToggleHotkeyId: ToggleHotkeyPressed?.Invoke(this, EventArgs.Empty); handled = true; break;
                 case NativeMethods.HotkeyId: EditLockHotkeyPressed?.Invoke(this, EventArgs.Empty); handled = true; break;
                 case NativeMethods.EscapeHotkeyId: EscapePressed?.Invoke(this, EventArgs.Empty); handled = true; break;
                 case NativeMethods.DrawHotkeyId: DrawHotkeyPressed?.Invoke(this, EventArgs.Empty); handled = true; break;

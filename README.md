@@ -17,7 +17,6 @@ Windows上のあらゆるチャートへ重ねて使える、軽量なフィボ�
 - `Shift + D` で配置済みFibを削除
 - 起動時はControlWindowを表示し、ToolはOFFで開始
 - ControlWindowのON/OFFボタンでFibの表示・非表示を切り替え
-- デフォルトF8のglobal toggle（背後画面・ControlWindow最小化中も有効）
 - FibレベルのON/OFF
 - 任意Fibレベルの追加・削除
 - 配置済みFibの小さい削除ボタン（LOCK時は非表示）
@@ -30,11 +29,9 @@ Windows上のあらゆるチャートへ重ねて使える、軽量なフィボ�
 
 起動するとControlWindowが表示され、ToolはOFFで開始します。OFFはFibの削除ではなく非表示であり、ONに戻すと既存Fibを同じ位置へ復元します。
 
-ControlWindowは最小化中や背後画面の操作中でもglobal toggleを受け付けます。デフォルトのショートカットはF8です。
-
 ### ショートカット
 
-- `F8`（デフォルト）: Overlay ON / OFF
+- ControlWindowの `Enable Overlay` / `Disable Overlay`: Overlay ON / OFF
 - `Shift + A`: Fib描画開始
 - 左ドラッグ: Fib描画
 - `Shift + D`: 現在のFibを削除
@@ -80,9 +77,11 @@ LOCK中はFib表示を維持したまま、背後のブラウザ、TradingView�
 
 ### ControlWindow / Settings
 
-ControlWindowのSettingsからGlobal Toggle Shortcutを変更できます。選択したshortcutは保存されますが、ToolのON/OFF状態は保存されず、次回起動時は毎回OFFで開始します。
+ControlWindowのSettingsからDraw、Deleteのショートカットを変更できます。選択したshortcutは保存されますが、ToolのON/OFF状態は保存されず、次回起動時は毎回OFFで開始します。
 
-ControlWindowには描画操作として `Draw: Shift + A`、削除操作として `Delete: Shift + D` を表示します。
+SettingsではTradingView風の標準色グループとFib帯の透明度も変更できます。Reset to TradingView Colorsで既定値へ戻せます。
+
+ControlWindowには現在の描画操作として `Draw: Shift + A`、削除操作として `Delete: Shift + D` を表示します。ショートカットを変更すると表示も更新されます。
 
 ## 標準Fibレベル
 
@@ -129,7 +128,7 @@ Windows 10での実機検証はまだ行っていません。
 
 ## 現在のバージョン
 
-v0.5.0
+v0.7.0
 
 ## 注意事項
 

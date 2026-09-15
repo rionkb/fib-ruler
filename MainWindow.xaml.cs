@@ -37,13 +37,20 @@ public partial class MainWindow : Window
     private bool _drawingHadPlacedRuler;
     private ContextMenu? _fibLevelsMenu;
     private bool _isToolEnabled;
-    private ToggleShortcutSettings _toggleShortcut = new();
+    private ToggleShortcutSettings _drawShortcut = ShortcutValidator.CreateDefaultDraw();
+    private ToggleShortcutSettings _deleteShortcut = ShortcutValidator.CreateDefaultDelete();
+    private ColorSettings _colors = ColorSettings.CreateDefault();
+    private double _bandOpacity = ColorSettings.DefaultBandOpacity;
     private AppSettings? _startupSettings;
 
     public bool IsToolEnabled => _isToolEnabled;
-    public string ToggleShortcutDisplay => _hotkeyService.ToggleShortcutDisplay;
+    public string DrawShortcutDisplay => _hotkeyService.DrawShortcutDisplay;
+    public string DeleteShortcutDisplay => _hotkeyService.DeleteShortcutDisplay;
+    public ToggleShortcutSettings DrawShortcutSettings => _hotkeyService.DrawShortcut;
+    public ToggleShortcutSettings DeleteShortcutSettings => _hotkeyService.DeleteShortcut;
+    public ColorSettings CurrentColors => ColorSettings.Clone(_colors);
+    public double CurrentBandOpacity => _bandOpacity;
     public event EventHandler? ToolEnabledChanged;
-    public event EventHandler? ToggleShortcutChanged;
 
     public MainWindow()
     {
@@ -52,19 +59,27 @@ public partial class MainWindow : Window
         Closed += MainWindow_Closed;
         _hotkeyService.EditLockHotkeyPressed += HotkeyService_EditLockHotkeyPressed;
         _hotkeyService.EscapePressed += HotkeyService_EscapePressed;
-        _hotkeyService.ToggleHotkeyPressed += HotkeyService_ToggleHotkeyPressed;
         _hotkeyService.DrawHotkeyPressed += HotkeyService_DrawHotkeyPressed;
         _hotkeyService.DeleteHotkeyPressed += HotkeyService_DeleteHotkeyPressed;
         _startupSettings = _settingsService.Load();
-        if (ShortcutValidator.TryParse(_startupSettings?.ToggleShortcut, out ToggleShortcutSettings shortcut))
+        if (_startupSettings?.DrawShortcut is not null
+            && ShortcutValidator.TryParse(_startupSettings.DrawShortcut, out ToggleShortcutSettings drawShortcut))
         {
-            _toggleShortcut = shortcut;
+            _drawShortcut = drawShortcut;
         }
+
+        if (_startupSettings?.DeleteShortcut is not null
+            && ShortcutValidator.TryParse(_startupSettings.DeleteShortcut, out ToggleShortcutSettings deleteShortcut))
+        {
+            _deleteShortcut = deleteShortcut;
+        }
+
+        RestoreAppearanceSettings(_startupSettings);
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
-        _hotkeyService.SetToggleShortcut(_toggleShortcut);
+        _hotkeyService.SetEditShortcuts(_drawShortcut, _deleteShortcut);
         if (!_hotkeyService.Register(this))
         {
             System.Diagnostics.Debug.WriteLine("Fib Ruler: いずれかのグローバルホットキーを登録できませんでした。");
@@ -89,8 +104,6 @@ public partial class MainWindow : Window
 
         ApplyMode(_mode == RulerMode.Edit ? RulerMode.Locked : RulerMode.Edit);
     }
-
-    private void HotkeyService_ToggleHotkeyPressed(object? sender, EventArgs e) => ToggleToolEnabled();
 
     private void HotkeyService_DrawHotkeyPressed(object? sender, EventArgs e)
     {
@@ -204,17 +217,72 @@ public partial class MainWindow : Window
 
     public void ToggleToolEnabled() => SetToolEnabled(!_isToolEnabled);
 
-    public bool TryChangeToggleShortcut(ToggleShortcutSettings shortcut, out string error)
+    public bool TryChangeEditShortcuts(
+        ToggleShortcutSettings draw,
+        ToggleShortcutSettings delete,
+        out string error)
     {
-        if (!_hotkeyService.TryChangeToggleShortcut(shortcut, out error))
+        if (!_hotkeyService.TryChangeEditShortcuts(draw, delete, out error))
         {
             return false;
         }
 
-        _toggleShortcut = _hotkeyService.ToggleShortcut;
+        _drawShortcut = _hotkeyService.DrawShortcut;
+        _deleteShortcut = _hotkeyService.DeleteShortcut;
         SaveSettings();
-        ToggleShortcutChanged?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    public bool TryApplyAppearance(ColorSettings colors, double bandOpacity, out string error)
+    {
+        error = string.Empty;
+        ColorSettings normalized = ColorSettings.Clone(colors);
+        foreach (string color in new[]
+        {
+            normalized.BaseLevelColor,
+            normalized.RedColor,
+            normalized.GreenColor,
+            normalized.OrangeColor,
+            normalized.CyanColor,
+            normalized.BlueColor,
+            normalized.PurpleColor,
+            normalized.PinkColor
+        })
+        {
+            if (!ColorSettings.TryNormalizeHex(color, out _))
+            {
+                error = "色は #RRGGBB 形式で入力してください。";
+                return false;
+            }
+        }
+
+        if (!double.IsFinite(bandOpacity) || bandOpacity is < 0 or > 1)
+        {
+            error = "帯の透明度は0%から100%の範囲で指定してください。";
+            return false;
+        }
+
+        normalized.BaseLevelColor = NormalizeColor(normalized.BaseLevelColor);
+        normalized.RedColor = NormalizeColor(normalized.RedColor);
+        normalized.GreenColor = NormalizeColor(normalized.GreenColor);
+        normalized.OrangeColor = NormalizeColor(normalized.OrangeColor);
+        normalized.CyanColor = NormalizeColor(normalized.CyanColor);
+        normalized.BlueColor = NormalizeColor(normalized.BlueColor);
+        normalized.PurpleColor = NormalizeColor(normalized.PurpleColor);
+        normalized.PinkColor = NormalizeColor(normalized.PinkColor);
+        _colors = normalized;
+        _bandOpacity = bandOpacity;
+        UpdateRulerVisuals();
+        SaveSettings();
+        return true;
+    }
+
+    public void ResetAppearance()
+    {
+        _colors = ColorSettings.CreateDefault();
+        _bandOpacity = ColorSettings.DefaultBandOpacity;
+        UpdateRulerVisuals();
+        SaveSettings();
     }
 
     private void SetToolEnabled(bool enabled)
@@ -698,7 +766,10 @@ public partial class MainWindow : Window
                 Enabled = level.Enabled,
                 IsCustom = !FibLevel.IsDefaultRatio(level.Ratio)
             }).ToList(),
-            ToggleShortcut = _hotkeyService.ToggleShortcut
+            DrawShortcut = _hotkeyService.DrawShortcut,
+            DeleteShortcut = _hotkeyService.DeleteShortcut,
+            Colors = ColorSettings.Clone(_colors),
+            BandOpacity = _bandOpacity
         };
 
         _settingsService.Save(settings);
@@ -706,6 +777,35 @@ public partial class MainWindow : Window
 
     private static bool IsFinitePoint(PointSettings? point) =>
         point is not null && double.IsFinite(point.X) && double.IsFinite(point.Y);
+
+    private void RestoreAppearanceSettings(AppSettings? settings)
+    {
+        if (settings?.Colors is not null)
+        {
+            ColorSettings savedColors = settings.Colors;
+            ColorSettings restoredColors = ColorSettings.CreateDefault();
+            restoredColors.BaseLevelColor = NormalizeColorOrDefault(savedColors.BaseLevelColor, restoredColors.BaseLevelColor);
+            restoredColors.RedColor = NormalizeColorOrDefault(savedColors.RedColor, restoredColors.RedColor);
+            restoredColors.GreenColor = NormalizeColorOrDefault(savedColors.GreenColor, restoredColors.GreenColor);
+            restoredColors.OrangeColor = NormalizeColorOrDefault(savedColors.OrangeColor, restoredColors.OrangeColor);
+            restoredColors.CyanColor = NormalizeColorOrDefault(savedColors.CyanColor, restoredColors.CyanColor);
+            restoredColors.BlueColor = NormalizeColorOrDefault(savedColors.BlueColor, restoredColors.BlueColor);
+            restoredColors.PurpleColor = NormalizeColorOrDefault(savedColors.PurpleColor, restoredColors.PurpleColor);
+            restoredColors.PinkColor = NormalizeColorOrDefault(savedColors.PinkColor, restoredColors.PinkColor);
+            _colors = restoredColors;
+        }
+
+        if (settings?.BandOpacity is double bandOpacity && double.IsFinite(bandOpacity))
+        {
+            _bandOpacity = Math.Clamp(bandOpacity, 0, 1);
+        }
+    }
+
+    private static string NormalizeColor(string value) =>
+        ColorSettings.TryNormalizeHex(value, out string normalized) ? normalized : value;
+
+    private static string NormalizeColorOrDefault(string? value, string fallback) =>
+        ColorSettings.TryNormalizeHex(value, out string normalized) ? normalized : fallback;
 
     private void UpdateRulerVisuals()
     {
@@ -829,11 +929,12 @@ public partial class MainWindow : Window
 
             double firstY = FibCalculator.CalculateY(_pointAY, _pointBY, lower);
             double secondY = FibCalculator.CalculateY(_pointAY, _pointBY, upper);
+            Color levelColor = GetLevelColor(upper);
             Rectangle band = new()
             {
                 Width = rulerWidth,
                 Height = Math.Abs(secondY - firstY),
-                Fill = new SolidColorBrush(Color.FromArgb(51, GetLevelColor(upper).R, GetLevelColor(upper).G, GetLevelColor(upper).B)),
+                Fill = new SolidColorBrush(Color.FromArgb(GetBandAlpha(), levelColor.R, levelColor.G, levelColor.B)),
                 IsHitTestVisible = false
             };
             Canvas.SetLeft(band, leftX);
@@ -865,21 +966,33 @@ public partial class MainWindow : Window
         }
     }
 
-    private static Brush GetLevelBrush(double ratio) => new SolidColorBrush(GetLevelColor(ratio));
+    private Brush GetLevelBrush(double ratio) => new SolidColorBrush(GetLevelColor(ratio));
 
-    private static Color GetLevelColor(double ratio) => ratio switch
+    private Color GetLevelColor(double ratio) => ratio switch
     {
-        0 or 1 => Color.FromRgb(128, 128, 128),
-        0.236 or 2.000 or 2.618 => Color.FromRgb(242, 54, 69),
-        0.382 or 0.618 or 1.272 => Color.FromRgb(76, 175, 80),
-        0.500 => Color.FromRgb(255, 152, 0),
-        0.786 or 1.414 => Color.FromRgb(0, 188, 212),
-        1.618 => Color.FromRgb(41, 98, 255),
-        3.618 => Color.FromRgb(156, 39, 176),
-        4.236 => Color.FromRgb(233, 30, 99),
+        0 or 1 => ParseColor(_colors.BaseLevelColor),
+        0.236 or 2.000 or 2.618 => ParseColor(_colors.RedColor),
+        0.382 or 0.618 or 1.272 => ParseColor(_colors.GreenColor),
+        0.500 => ParseColor(_colors.OrangeColor),
+        0.786 or 1.414 => ParseColor(_colors.CyanColor),
+        1.618 => ParseColor(_colors.BlueColor),
+        3.618 => ParseColor(_colors.PurpleColor),
+        4.236 => ParseColor(_colors.PinkColor),
         _ when ratio < 0 => Color.FromRgb(120, 123, 134),
-        _ => Color.FromRgb(76, 175, 80)
+        _ => ParseColor(_colors.GreenColor)
     };
+
+    private byte GetBandAlpha() => (byte)Math.Round(Math.Clamp(_bandOpacity, 0, 1) * byte.MaxValue);
+
+    private static Color ParseColor(string value)
+    {
+        if (!ColorSettings.TryNormalizeHex(value, out string normalized))
+        {
+            return Colors.Gray;
+        }
+
+        return (Color)ColorConverter.ConvertFromString(normalized);
+    }
 
     private Point ClampPointToOverlayBounds(Point point)
     {
