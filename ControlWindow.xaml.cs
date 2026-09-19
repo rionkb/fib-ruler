@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using FibRuler.Services;
 
 namespace FibRuler;
 
@@ -12,6 +13,7 @@ public partial class ControlWindow : Window
         InitializeComponent();
         _overlay = overlay;
         _overlay.ToolEnabledChanged += Overlay_ToolEnabledChanged;
+        _overlay.HotkeyRegistrationFailed += Overlay_HotkeyRegistrationFailed;
         UpdateUi();
     }
 
@@ -28,6 +30,12 @@ public partial class ControlWindow : Window
 
     private void Overlay_ToolEnabledChanged(object? sender, EventArgs e) => UpdateUi();
 
+    private void Overlay_HotkeyRegistrationFailed(object? sender, HotkeyRegistrationFailedEventArgs e)
+    {
+        HotkeyErrorText.Text = e.Message;
+        HotkeyErrorText.Visibility = Visibility.Visible;
+    }
+
     private void UpdateUi()
     {
         bool enabled = _overlay.IsToolEnabled;
@@ -43,6 +51,7 @@ public partial class ControlWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _overlay.ToolEnabledChanged -= Overlay_ToolEnabledChanged;
+        _overlay.HotkeyRegistrationFailed -= Overlay_HotkeyRegistrationFailed;
         if (_overlay.IsVisible)
         {
             _overlay.Close();

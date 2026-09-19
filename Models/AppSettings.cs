@@ -8,6 +8,8 @@ public sealed class AppSettings
 
     public PointSettings PointB { get; set; } = new();
 
+    public bool HasPlacedRuler { get; set; }
+
     public List<FibLevelSettings> FibLevels { get; set; } = [];
 
     public ToggleShortcutSettings? DrawShortcut { get; set; }

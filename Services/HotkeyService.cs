@@ -22,6 +22,7 @@ public sealed class HotkeyService : IDisposable
     public event EventHandler? EscapePressed;
     public event EventHandler? DrawHotkeyPressed;
     public event EventHandler? DeleteHotkeyPressed;
+    public event EventHandler<HotkeyRegistrationFailedEventArgs>? RegistrationFailed;
     public ToggleShortcutSettings DrawShortcut => Clone(_drawShortcut);
     public ToggleShortcutSettings DeleteShortcut => Clone(_deleteShortcut);
     public string DrawShortcutDisplay => ShortcutValidator.Format(_drawShortcut);
@@ -42,12 +43,19 @@ public sealed class HotkeyService : IDisposable
         _windowHandle = new WindowInteropHelper(window).Handle;
         if (_windowHandle == IntPtr.Zero)
         {
-            Debug.WriteLine("Fib Ruler: ホットキー登録失敗。ウィンドウハンドルがありません。");
+            ReportFailure("グローバルショートカットを登録できません。ウィンドウハンドルを取得できませんでした。");
             return false;
         }
 
         _source = HwndSource.FromHwnd(_windowHandle);
-        _source?.AddHook(WindowMessageHook);
+        if (_source is null)
+        {
+            ReportFailure("グローバルショートカットを登録できません。ウィンドウメッセージフックを作成できませんでした。");
+            _windowHandle = IntPtr.Zero;
+            return false;
+        }
+
+        _source.AddHook(WindowMessageHook);
         return true;
     }
 
@@ -64,7 +72,10 @@ public sealed class HotkeyService : IDisposable
         if (_editLockRegistered) return true;
         _editLockRegistered = NativeMethods.RegisterHotKey(_windowHandle, NativeMethods.HotkeyId,
             NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModNoRepeat, NativeMethods.VirtualKeyF);
-        if (!_editLockRegistered) Debug.WriteLine($"Fib Ruler: Ctrl+Alt+Fの登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+        if (!_editLockRegistered)
+        {
+            ReportFailure($"Ctrl + Alt + Fを登録できません。別のアプリが使用中の可能性があります。Win32エラー={Marshal.GetLastWin32Error()}");
+        }
         return _editLockRegistered;
     }
 
@@ -80,7 +91,10 @@ public sealed class HotkeyService : IDisposable
 
         if (_escapeRegistered) return true;
         _escapeRegistered = NativeMethods.RegisterHotKey(_windowHandle, NativeMethods.EscapeHotkeyId, 0, NativeMethods.VirtualKeyEscape);
-        if (!_escapeRegistered) Debug.WriteLine($"Fib Ruler: Escホットキーの登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+        if (!_escapeRegistered)
+        {
+            ReportFailure($"Escを登録できません。別のアプリが使用中の可能性があります。Win32エラー={Marshal.GetLastWin32Error()}");
+        }
         return _escapeRegistered;
     }
 
@@ -161,13 +175,13 @@ public sealed class HotkeyService : IDisposable
     {
         if (!ShortcutValidator.TryGetNative(draw, out uint drawModifiers, out uint drawKey, out string drawError))
         {
-            Debug.WriteLine($"Fib Ruler: Drawショートカットが無効です。{drawError}");
+            ReportFailure($"Draw {ShortcutValidator.Format(draw)}を登録できません。Settingsで変更してください。{drawError}");
             return false;
         }
 
         if (!ShortcutValidator.TryGetNative(delete, out uint deleteModifiers, out uint deleteKey, out string deleteError))
         {
-            Debug.WriteLine($"Fib Ruler: Deleteショートカットが無効です。{deleteError}");
+            ReportFailure($"Delete {ShortcutValidator.Format(delete)}を登録できません。Settingsで変更してください。{deleteError}");
             return false;
         }
 
@@ -178,7 +192,7 @@ public sealed class HotkeyService : IDisposable
             drawKey);
         if (!drawRegistered)
         {
-            Debug.WriteLine($"Fib Ruler: {ShortcutValidator.Format(draw)}の登録に失敗しました。Win32エラー={Marshal.GetLastWin32Error()}");
+            ReportFailure($"Draw {ShortcutValidator.Format(draw)}を登録できません。Settingsで変更してください。Win32エラー={Marshal.GetLastWin32Error()}");
             return false;
         }
 
@@ -191,7 +205,7 @@ public sealed class HotkeyService : IDisposable
         {
             int win32Error = Marshal.GetLastWin32Error();
             NativeMethods.UnregisterHotKey(_windowHandle, NativeMethods.DrawHotkeyId);
-            Debug.WriteLine($"Fib Ruler: {ShortcutValidator.Format(delete)}の登録に失敗しました。Win32エラー={win32Error}");
+            ReportFailure($"Delete {ShortcutValidator.Format(delete)}を登録できません。Settingsで変更してください。Win32エラー={win32Error}");
             return false;
         }
 
@@ -227,9 +241,20 @@ public sealed class HotkeyService : IDisposable
         _deleteRegistered = false;
     }
 
+    private void ReportFailure(string message)
+    {
+        Debug.WriteLine($"Fib Ruler: {message}");
+        RegistrationFailed?.Invoke(this, new HotkeyRegistrationFailedEventArgs(message));
+    }
+
     private static ToggleShortcutSettings Clone(ToggleShortcutSettings shortcut) => new()
     {
         Key = shortcut.Key,
         Modifiers = shortcut.Modifiers.ToList()
     };
+}
+
+public sealed class HotkeyRegistrationFailedEventArgs(string message) : EventArgs
+{
+    public string Message { get; } = message;
 }

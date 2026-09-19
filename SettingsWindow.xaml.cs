@@ -115,7 +115,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        string selectedColor = Drawing.ColorTranslator.ToHtml(dialog.Color).ToUpperInvariant();
+        string selectedColor = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
         _updatingUi = true;
         try
         {

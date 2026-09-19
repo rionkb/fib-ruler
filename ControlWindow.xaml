@@ -9,11 +9,11 @@
     <Border Padding="24" BorderBrush="#30343D" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="52" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -35,6 +35,10 @@
                     <TextBlock x:Name="DeleteShortcutText" Margin="0,6,0,0" FontWeight="SemiBold" />
                 </StackPanel>
             </Grid>
+
+            <TextBlock Grid.Row="4" x:Name="HotkeyErrorText" Margin="0,14,0,0"
+                       VerticalAlignment="Bottom"
+                       Foreground="#FF8A80" TextWrapping="Wrap" Visibility="Collapsed" />
 
             <Button Grid.Row="5" HorizontalAlignment="Right" Content="Settings" Padding="14,5" Click="SettingsButton_Click" />
         </Grid>

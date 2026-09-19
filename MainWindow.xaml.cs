@@ -51,6 +51,7 @@ public partial class MainWindow : Window
     public ColorSettings CurrentColors => ColorSettings.Clone(_colors);
     public double CurrentBandOpacity => _bandOpacity;
     public event EventHandler? ToolEnabledChanged;
+    public event EventHandler<HotkeyRegistrationFailedEventArgs>? HotkeyRegistrationFailed;
 
     public MainWindow()
     {
@@ -61,16 +62,18 @@ public partial class MainWindow : Window
         _hotkeyService.EscapePressed += HotkeyService_EscapePressed;
         _hotkeyService.DrawHotkeyPressed += HotkeyService_DrawHotkeyPressed;
         _hotkeyService.DeleteHotkeyPressed += HotkeyService_DeleteHotkeyPressed;
+        _hotkeyService.RegistrationFailed += HotkeyService_RegistrationFailed;
         _startupSettings = _settingsService.Load();
-        if (_startupSettings?.DrawShortcut is not null
-            && ShortcutValidator.TryParse(_startupSettings.DrawShortcut, out ToggleShortcutSettings drawShortcut))
+        ToggleShortcutSettings drawShortcut = _drawShortcut;
+        ToggleShortcutSettings deleteShortcut = _deleteShortcut;
+        bool hasValidDrawShortcut = _startupSettings?.DrawShortcut is not null
+            && ShortcutValidator.TryParse(_startupSettings.DrawShortcut, out drawShortcut);
+        bool hasValidDeleteShortcut = _startupSettings?.DeleteShortcut is not null
+            && ShortcutValidator.TryParse(_startupSettings.DeleteShortcut, out deleteShortcut);
+        if (hasValidDrawShortcut && hasValidDeleteShortcut
+            && ShortcutValidator.TryValidateEditShortcuts(drawShortcut, deleteShortcut, out _))
         {
             _drawShortcut = drawShortcut;
-        }
-
-        if (_startupSettings?.DeleteShortcut is not null
-            && ShortcutValidator.TryParse(_startupSettings.DeleteShortcut, out ToggleShortcutSettings deleteShortcut))
-        {
             _deleteShortcut = deleteShortcut;
         }
 
@@ -94,6 +97,9 @@ public partial class MainWindow : Window
         SaveSettings();
         _hotkeyService.Dispose();
     }
+
+    private void HotkeyService_RegistrationFailed(object? sender, HotkeyRegistrationFailedEventArgs e) =>
+        HotkeyRegistrationFailed?.Invoke(this, e);
 
     private void HotkeyService_EditLockHotkeyPressed(object? sender, EventArgs e)
     {
@@ -209,8 +215,7 @@ public partial class MainWindow : Window
         RestoreSettings(_startupSettings);
         _startupSettings = null;
         _isToolEnabled = false;
-        _drawingMode = DrawingMode.Idle;
-        _hasPlacedRuler = false;
+        _drawingMode = _hasPlacedRuler ? DrawingMode.Placed : DrawingMode.Idle;
         ApplyInteractionState();
         UpdateRulerVisuals();
     }
@@ -704,14 +709,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (IsFinitePoint(settings.PointA))
+        bool hasValidPointA = IsFinitePoint(settings.PointA);
+        bool hasValidPointB = IsFinitePoint(settings.PointB);
+        _hasPlacedRuler = settings.HasPlacedRuler && hasValidPointA && hasValidPointB;
+
+        if (hasValidPointA)
         {
             Point pointA = ClampPointToOverlayBounds(new Point(settings.PointA.X, settings.PointA.Y));
             _pointAX = pointA.X;
             _pointAY = pointA.Y;
         }
 
-        if (IsFinitePoint(settings.PointB))
+        if (hasValidPointB)
         {
             Point pointB = ClampPointToOverlayBounds(new Point(settings.PointB.X, settings.PointB.Y));
             _pointBX = pointB.X;
@@ -760,6 +769,7 @@ public partial class MainWindow : Window
             SettingsVersion = 1,
             PointA = new PointSettings { X = _pointAX, Y = _pointAY },
             PointB = new PointSettings { X = _pointBX, Y = _pointBY },
+            HasPlacedRuler = _hasPlacedRuler,
             FibLevels = _levels.Select(level => new FibLevelSettings
             {
                 Ratio = level.Ratio,
