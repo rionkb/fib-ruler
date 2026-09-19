@@ -1,8 +1,12 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Media;
 using FibRuler.Models;
 using FibRuler.Services;
+using Drawing = System.Drawing;
+using Forms = System.Windows.Forms;
 
 namespace FibRuler;
 
@@ -19,6 +23,13 @@ public partial class SettingsWindow : Window
         _updatingUi = false;
         _overlay = overlay;
         UpdateUi();
+    }
+
+    private void BackButton_Click(object sender, RoutedEventArgs e)
+    {
+        _capturingTarget = null;
+        SetShortcutCaptureUi();
+        Close();
     }
 
     private void ChangeShortcutButton_Click(object sender, RoutedEventArgs e)
@@ -80,6 +91,45 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void ColorSampleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string colorKey })
+        {
+            return;
+        }
+
+        string currentValue = GetColorValue(_overlay.CurrentColors, colorKey);
+        if (!ColorSettings.TryNormalizeHex(currentValue, out string normalized))
+        {
+            return;
+        }
+
+        using Forms.ColorDialog dialog = new()
+        {
+            Color = Drawing.ColorTranslator.FromHtml(normalized),
+            FullOpen = true,
+            AnyColor = true
+        };
+        if (dialog.ShowDialog(new WindowHandle(new WindowInteropHelper(this).Handle)) != Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        string selectedColor = Drawing.ColorTranslator.ToHtml(dialog.Color).ToUpperInvariant();
+        _updatingUi = true;
+        try
+        {
+            SetColorTextValue(colorKey, selectedColor);
+        }
+        finally
+        {
+            _updatingUi = false;
+        }
+
+        ApplyAppearance();
+        UpdateUi();
+    }
+
     private void BandOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!_updatingUi && IsLoaded)
@@ -139,6 +189,7 @@ public partial class SettingsWindow : Window
             PinkColorTextBox.Text = colors.PinkColor;
             BandOpacitySlider.Value = _overlay.CurrentBandOpacity;
             BandOpacityText.Text = $"{_overlay.CurrentBandOpacity:P0}";
+            UpdateColorSwatches(colors);
         }
         finally
         {
@@ -156,6 +207,66 @@ public partial class SettingsWindow : Window
         bool capturing = _capturingTarget is not null;
         ChangeDrawShortcutButton.IsEnabled = !capturing;
         ChangeDeleteShortcutButton.IsEnabled = !capturing;
+    }
+
+    private void UpdateColorSwatches(ColorSettings colors)
+    {
+        SetColorSwatch(BaseColorButton, colors.BaseLevelColor);
+        SetColorSwatch(RedColorButton, colors.RedColor);
+        SetColorSwatch(GreenColorButton, colors.GreenColor);
+        SetColorSwatch(OrangeColorButton, colors.OrangeColor);
+        SetColorSwatch(CyanColorButton, colors.CyanColor);
+        SetColorSwatch(BlueColorButton, colors.BlueColor);
+        SetColorSwatch(PurpleColorButton, colors.PurpleColor);
+        SetColorSwatch(PinkColorButton, colors.PinkColor);
+    }
+
+    private static void SetColorSwatch(Button button, string value)
+    {
+        button.Background = ColorSettings.TryNormalizeHex(value, out string normalized)
+            ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString(normalized))
+            : Brushes.Transparent;
+    }
+
+    private static string GetColorValue(ColorSettings colors, string colorKey) => colorKey switch
+    {
+        "Base" => colors.BaseLevelColor,
+        "Red" => colors.RedColor,
+        "Green" => colors.GreenColor,
+        "Orange" => colors.OrangeColor,
+        "Cyan" => colors.CyanColor,
+        "Blue" => colors.BlueColor,
+        "Purple" => colors.PurpleColor,
+        "Pink" => colors.PinkColor,
+        _ => colors.BaseLevelColor
+    };
+
+    private void SetColorTextValue(string colorKey, string value)
+    {
+        switch (colorKey)
+        {
+            case "Base": BaseColorTextBox.Text = value; break;
+            case "Red": RedColorTextBox.Text = value; break;
+            case "Green": GreenColorTextBox.Text = value; break;
+            case "Orange": OrangeColorTextBox.Text = value; break;
+            case "Cyan": CyanColorTextBox.Text = value; break;
+            case "Blue": BlueColorTextBox.Text = value; break;
+            case "Purple": PurpleColorTextBox.Text = value; break;
+            case "Pink": PinkColorTextBox.Text = value; break;
+        }
+    }
+
+    private sealed class WindowHandle : Forms.IWin32Window
+    {
+        public WindowHandle(IntPtr handle) => Handle = handle;
+
+        public IntPtr Handle { get; }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _capturingTarget = null;
+        base.OnClosed(e);
     }
 
     private enum ShortcutTarget

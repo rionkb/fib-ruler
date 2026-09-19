@@ -6,9 +6,24 @@
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         ShowInTaskbar="False" Background="#17191F" Foreground="#E8EAED"
         PreviewKeyDown="Window_PreviewKeyDown">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24">
-            <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="16,12,16,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="BackButton" Content="← Back" Padding="10,5" Click="BackButton_Click" />
+            <TextBlock Grid.Column="1" Text="Settings" Margin="16,0,0,0"
+                       VerticalAlignment="Center" FontSize="22" FontWeight="SemiBold" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,18,24,24">
 
             <TextBlock Text="Shortcuts" Margin="0,22,0,10" FontSize="16" FontWeight="SemiBold" />
             <Grid>
@@ -34,6 +49,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="34" />
                     <ColumnDefinition Width="100" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
@@ -47,21 +63,29 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Text="Base level (0.000 / 1.000)" VerticalAlignment="Center" />
-                <TextBox Grid.Row="0" Grid.Column="1" x:Name="BaseColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="0" Grid.Column="1" x:Name="BaseColorButton" Tag="Base" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Base color" />
+                <TextBox Grid.Row="0" Grid.Column="2" x:Name="BaseColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
                 <TextBlock Grid.Row="1" Text="Red" VerticalAlignment="Center" />
-                <TextBox Grid.Row="1" Grid.Column="1" x:Name="RedColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="1" Grid.Column="1" x:Name="RedColorButton" Tag="Red" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Red color" />
+                <TextBox Grid.Row="1" Grid.Column="2" x:Name="RedColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
                 <TextBlock Grid.Row="2" Text="Green" VerticalAlignment="Center" />
-                <TextBox Grid.Row="2" Grid.Column="1" x:Name="GreenColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="2" Grid.Column="1" x:Name="GreenColorButton" Tag="Green" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Green color" />
+                <TextBox Grid.Row="2" Grid.Column="2" x:Name="GreenColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
                 <TextBlock Grid.Row="3" Text="Orange" VerticalAlignment="Center" />
-                <TextBox Grid.Row="3" Grid.Column="1" x:Name="OrangeColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="3" Grid.Column="1" x:Name="OrangeColorButton" Tag="Orange" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Orange color" />
+                <TextBox Grid.Row="3" Grid.Column="2" x:Name="OrangeColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
                 <TextBlock Grid.Row="4" Text="Cyan" VerticalAlignment="Center" />
-                <TextBox Grid.Row="4" Grid.Column="1" x:Name="CyanColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="4" Grid.Column="1" x:Name="CyanColorButton" Tag="Cyan" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Cyan color" />
+                <TextBox Grid.Row="4" Grid.Column="2" x:Name="CyanColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
                 <TextBlock Grid.Row="5" Text="Blue" VerticalAlignment="Center" />
-                <TextBox Grid.Row="5" Grid.Column="1" x:Name="BlueColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="5" Grid.Column="1" x:Name="BlueColorButton" Tag="Blue" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Blue color" />
+                <TextBox Grid.Row="5" Grid.Column="2" x:Name="BlueColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
                 <TextBlock Grid.Row="6" Text="Purple" VerticalAlignment="Center" />
-                <TextBox Grid.Row="6" Grid.Column="1" x:Name="PurpleColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="6" Grid.Column="1" x:Name="PurpleColorButton" Tag="Purple" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Purple color" />
+                <TextBox Grid.Row="6" Grid.Column="2" x:Name="PurpleColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
                 <TextBlock Grid.Row="7" Text="Pink" VerticalAlignment="Center" />
-                <TextBox Grid.Row="7" Grid.Column="1" x:Name="PinkColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
+                <Button Grid.Row="7" Grid.Column="1" x:Name="PinkColorButton" Tag="Pink" Width="26" Height="24" Margin="8,3,0,3" Padding="0" Click="ColorSampleButton_Click" AutomationProperties.Name="Choose Pink color" />
+                <TextBox Grid.Row="7" Grid.Column="2" x:Name="PinkColorTextBox" MaxLength="7" Margin="8,3,0,3" TextChanged="ColorTextBox_TextChanged" />
             </Grid>
 
             <TextBlock Text="Band Opacity" Margin="0,18,0,6" />
@@ -76,6 +100,7 @@
             <Button Content="Reset to TradingView Colors" Margin="0,16,0,0" HorizontalAlignment="Left" Padding="12,5" Click="ResetColorsButton_Click" />
 
             <TextBlock x:Name="HintText" Margin="0,18,0,0" Foreground="#AEB4C0" TextWrapping="Wrap" />
-        </StackPanel>
-    </ScrollViewer>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </Window>
