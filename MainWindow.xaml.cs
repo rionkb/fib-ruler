@@ -94,6 +94,11 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
+        if (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing)
+        {
+            CancelDrawing(playSound: false);
+        }
+
         SaveSettings();
         _hotkeyService.Dispose();
     }
@@ -171,6 +176,7 @@ public partial class MainWindow : Window
         _mode = mode;
         if (_mode == RulerMode.Locked)
         {
+            CloseFibLevelsMenu();
             _dragTarget = DragTarget.None;
             if (OverlayCanvas.IsMouseCaptured)
             {
@@ -563,6 +569,10 @@ public partial class MainWindow : Window
         }
         else if (!_drawingHadPlacedRuler)
         {
+            _pointAX = _drawingOriginalA.X;
+            _pointAY = _drawingOriginalA.Y;
+            _pointBX = _drawingOriginalB.X;
+            _pointBY = _drawingOriginalB.Y;
             _hasPlacedRuler = false;
         }
 
@@ -825,9 +835,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        double leftX = Math.Min(_pointAX, _pointBX);
-        double rulerWidth = Math.Abs(_pointBX - _pointAX);
-        double rightX = Math.Max(_pointAX, _pointBX);
+        (double leftX, double rightX) = GetRulerHorizontalBounds();
+        double rulerWidth = rightX - leftX;
         AddFibBands(leftX, rulerWidth);
         AddFibLines(leftX, rightX);
         AddLine(_pointAX, _pointAY, _pointBX, _pointBY,
@@ -841,6 +850,25 @@ public partial class MainWindow : Window
         {
             AddDeleteButton(rightX);
         }
+    }
+
+    private (double LeftX, double RightX) GetRulerHorizontalBounds()
+    {
+        double leftX = Math.Min(_pointAX, _pointBX);
+        double rightX = Math.Max(_pointAX, _pointBX);
+        if (rightX - leftX >= 1)
+        {
+            return (leftX, rightX);
+        }
+
+        const double fallbackWidth = 20;
+        double centerX = (_pointAX + _pointBX) / 2;
+        if (ActualWidth >= fallbackWidth)
+        {
+            centerX = Math.Clamp(centerX, fallbackWidth / 2, ActualWidth - fallbackWidth / 2);
+        }
+
+        return (centerX - fallbackWidth / 2, centerX + fallbackWidth / 2);
     }
 
     private void AddDeleteButton(double rightX)
