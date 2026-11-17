@@ -1,9 +1,9 @@
+using System.Media;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using System.Media;
 using FibRuler.Models;
 using FibRuler.Services;
 
@@ -11,12 +11,7 @@ namespace FibRuler;
 
 public partial class MainWindow : Window
 {
-    private const double LabelWidth = 44;
-    private const double LabelMargin = 5;
-    private const double HandleDiameter = 12;
-    private const double HandleEdgeMargin = 2;
-    private const double ScreenMargin = 6;
-    private const double DeleteButtonSize = 24;
+    private const double HandleEdgePadding = RulerRenderer.HandleEdgePadding;
 
     private double _pointAX = 400;
     private double _pointAY = 700;
@@ -25,6 +20,7 @@ public partial class MainWindow : Window
     private readonly List<FibLevel> _levels = FibLevel.CreateDefaults().ToList();
     private readonly HotkeyService _hotkeyService = new();
     private readonly SettingsService _settingsService = new();
+    private readonly RulerRenderer _renderer;
     private RulerMode _mode = RulerMode.Edit;
     private DrawingMode _drawingMode = DrawingMode.Idle;
     private bool _hasPlacedRuler;
@@ -56,6 +52,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _renderer = new RulerRenderer(OverlayCanvas);
+        _renderer.DeleteRequested += (_, _) => DeleteCurrentRuler();
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
         _hotkeyService.EditLockHotkeyPressed += HotkeyService_EditLockHotkeyPressed;
@@ -166,9 +164,7 @@ public partial class MainWindow : Window
         if (_drawingMode is DrawingMode.Armed or DrawingMode.Drawing)
         {
             CancelDrawing();
-            return;
         }
-
     }
 
     private void ApplyMode(RulerMode mode)
@@ -213,7 +209,6 @@ public partial class MainWindow : Window
         {
             System.Diagnostics.Debug.WriteLine($"Fib Ruler: モード切替に失敗しました。{exception}");
         }
-
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -247,20 +242,9 @@ public partial class MainWindow : Window
     public bool TryApplyAppearance(ColorSettings colors, double bandOpacity, out string error)
     {
         error = string.Empty;
-        ColorSettings normalized = ColorSettings.Clone(colors);
-        foreach (string color in new[]
+        foreach (string key in ColorSettings.ColorKeys)
         {
-            normalized.BaseLevelColor,
-            normalized.RedColor,
-            normalized.GreenColor,
-            normalized.OrangeColor,
-            normalized.CyanColor,
-            normalized.BlueColor,
-            normalized.PurpleColor,
-            normalized.PinkColor
-        })
-        {
-            if (!ColorSettings.TryNormalizeHex(color, out _))
+            if (!ColorSettings.TryNormalizeHex(colors.GetColor(key), out _))
             {
                 error = "色は #RRGGBB 形式で入力してください。";
                 return false;
@@ -273,14 +257,13 @@ public partial class MainWindow : Window
             return false;
         }
 
-        normalized.BaseLevelColor = NormalizeColor(normalized.BaseLevelColor);
-        normalized.RedColor = NormalizeColor(normalized.RedColor);
-        normalized.GreenColor = NormalizeColor(normalized.GreenColor);
-        normalized.OrangeColor = NormalizeColor(normalized.OrangeColor);
-        normalized.CyanColor = NormalizeColor(normalized.CyanColor);
-        normalized.BlueColor = NormalizeColor(normalized.BlueColor);
-        normalized.PurpleColor = NormalizeColor(normalized.PurpleColor);
-        normalized.PinkColor = NormalizeColor(normalized.PinkColor);
+        ColorSettings normalized = ColorSettings.Clone(colors);
+        foreach (string key in ColorSettings.ColorKeys)
+        {
+            ColorSettings.TryNormalizeHex(colors.GetColor(key), out string value);
+            normalized.SetColor(key, value);
+        }
+
         _colors = normalized;
         _bandOpacity = bandOpacity;
         UpdateRulerVisuals();
@@ -559,22 +542,11 @@ public partial class MainWindow : Window
         }
 
         OverlayCanvas.Cursor = Cursors.Arrow;
-        if (_drawingMode == DrawingMode.Drawing && _drawingHadPlacedRuler)
-        {
-            _pointAX = _drawingOriginalA.X;
-            _pointAY = _drawingOriginalA.Y;
-            _pointBX = _drawingOriginalB.X;
-            _pointBY = _drawingOriginalB.Y;
-            _hasPlacedRuler = true;
-        }
-        else if (!_drawingHadPlacedRuler)
-        {
-            _pointAX = _drawingOriginalA.X;
-            _pointAY = _drawingOriginalA.Y;
-            _pointBX = _drawingOriginalB.X;
-            _pointBY = _drawingOriginalB.Y;
-            _hasPlacedRuler = false;
-        }
+        _pointAX = _drawingOriginalA.X;
+        _pointAY = _drawingOriginalA.Y;
+        _pointBX = _drawingOriginalB.X;
+        _pointBY = _drawingOriginalB.Y;
+        _hasPlacedRuler = _drawingHadPlacedRuler;
 
         _drawingMode = _hasPlacedRuler ? DrawingMode.Placed : DrawingMode.Idle;
         UpdateEscapeHotkey();
@@ -802,16 +774,17 @@ public partial class MainWindow : Window
     {
         if (settings?.Colors is not null)
         {
-            ColorSettings savedColors = settings.Colors;
             ColorSettings restoredColors = ColorSettings.CreateDefault();
-            restoredColors.BaseLevelColor = NormalizeColorOrDefault(savedColors.BaseLevelColor, restoredColors.BaseLevelColor);
-            restoredColors.RedColor = NormalizeColorOrDefault(savedColors.RedColor, restoredColors.RedColor);
-            restoredColors.GreenColor = NormalizeColorOrDefault(savedColors.GreenColor, restoredColors.GreenColor);
-            restoredColors.OrangeColor = NormalizeColorOrDefault(savedColors.OrangeColor, restoredColors.OrangeColor);
-            restoredColors.CyanColor = NormalizeColorOrDefault(savedColors.CyanColor, restoredColors.CyanColor);
-            restoredColors.BlueColor = NormalizeColorOrDefault(savedColors.BlueColor, restoredColors.BlueColor);
-            restoredColors.PurpleColor = NormalizeColorOrDefault(savedColors.PurpleColor, restoredColors.PurpleColor);
-            restoredColors.PinkColor = NormalizeColorOrDefault(savedColors.PinkColor, restoredColors.PinkColor);
+            foreach (string key in ColorSettings.ColorKeys)
+            {
+                string value = settings.Colors.GetColor(key);
+                restoredColors.SetColor(
+                    key,
+                    ColorSettings.TryNormalizeHex(value, out string normalized)
+                        ? normalized
+                        : restoredColors.GetColor(key));
+            }
+
             _colors = restoredColors;
         }
 
@@ -821,84 +794,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string NormalizeColor(string value) =>
-        ColorSettings.TryNormalizeHex(value, out string normalized) ? normalized : value;
-
-    private static string NormalizeColorOrDefault(string? value, string fallback) =>
-        ColorSettings.TryNormalizeHex(value, out string normalized) ? normalized : fallback;
-
-    private void UpdateRulerVisuals()
-    {
-        OverlayCanvas.Children.Clear();
-        if (!_isToolEnabled || !_hasPlacedRuler)
-        {
-            return;
-        }
-
-        (double leftX, double rightX) = GetRulerHorizontalBounds();
-        double rulerWidth = rightX - leftX;
-        AddFibBands(leftX, rulerWidth);
-        AddFibLines(leftX, rightX);
-        AddLine(_pointAX, _pointAY, _pointBX, _pointBY,
-            new SolidColorBrush(Color.FromArgb(179, 120, 123, 134)), 1.1);
-        AddWholeRulerHitArea();
-        AddFibLabels(leftX);
-        Brush anchorBrush = new SolidColorBrush(Color.FromRgb(41, 98, 255));
-        AddPoint(_pointAX, _pointAY, anchorBrush, DragTarget.A);
-        AddPoint(_pointBX, _pointBY, anchorBrush, DragTarget.B);
-        if (_mode == RulerMode.Edit && _drawingMode == DrawingMode.Placed)
-        {
-            AddDeleteButton(rightX);
-        }
-    }
-
-    private (double LeftX, double RightX) GetRulerHorizontalBounds()
-    {
-        double leftX = Math.Min(_pointAX, _pointBX);
-        double rightX = Math.Max(_pointAX, _pointBX);
-        if (rightX - leftX >= 1)
-        {
-            return (leftX, rightX);
-        }
-
-        const double fallbackWidth = 20;
-        double centerX = (_pointAX + _pointBX) / 2;
-        if (ActualWidth >= fallbackWidth)
-        {
-            centerX = Math.Clamp(centerX, fallbackWidth / 2, ActualWidth - fallbackWidth / 2);
-        }
-
-        return (centerX - fallbackWidth / 2, centerX + fallbackWidth / 2);
-    }
-
-    private void AddDeleteButton(double rightX)
-    {
-        Button deleteButton = new()
-        {
-            Content = "×",
-            Width = DeleteButtonSize,
-            Height = DeleteButtonSize,
-            Padding = new Thickness(0),
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.White,
-            Background = new SolidColorBrush(Color.FromArgb(115, 30, 35, 45)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(150, 180, 210, 235)),
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            ToolTip = "Delete Fib ruler"
-        };
-        deleteButton.Click += DeleteRulerButton_Click;
-        Canvas.SetLeft(deleteButton, Math.Max(ScreenMargin, rightX - DeleteButtonSize));
-        Canvas.SetTop(deleteButton, ScreenMargin);
-        OverlayCanvas.Children.Add(deleteButton);
-    }
-
-    private void DeleteRulerButton_Click(object sender, RoutedEventArgs e)
-    {
-        DeleteCurrentRuler();
-        e.Handled = true;
-    }
+    private void UpdateRulerVisuals() =>
+        _renderer.Render(new RulerRenderState(
+            _isToolEnabled,
+            _hasPlacedRuler,
+            _mode == RulerMode.Edit && _drawingMode == DrawingMode.Placed,
+            _pointAX,
+            _pointAY,
+            _pointBX,
+            _pointBY,
+            _levels,
+            _colors,
+            _bandOpacity));
 
     private void DeleteCurrentRuler()
     {
@@ -939,99 +846,6 @@ public partial class MainWindow : Window
         _fibLevelsMenu = null;
     }
 
-    private void AddFibBands(double leftX, double rulerWidth)
-    {
-        (double Lower, double Upper)[] bands =
-        [
-            (0, 0.236),
-            (0.236, 0.382),
-            (0.382, 0.500),
-            (0.500, 0.618),
-            (0.618, 0.786),
-            (0.786, 1.000),
-            (1.000, 1.272),
-            (1.272, 1.414),
-            (1.414, 1.618),
-            (1.618, 2.000),
-            (2.000, 2.618),
-            (2.618, 3.618),
-            (3.618, 4.236)
-        ];
-
-        foreach ((double lower, double upper) in bands)
-        {
-            if (!IsLevelEnabled(lower) || !IsLevelEnabled(upper))
-            {
-                continue;
-            }
-
-            double firstY = FibCalculator.CalculateY(_pointAY, _pointBY, lower);
-            double secondY = FibCalculator.CalculateY(_pointAY, _pointBY, upper);
-            Color levelColor = GetLevelColor(upper);
-            Rectangle band = new()
-            {
-                Width = rulerWidth,
-                Height = Math.Abs(secondY - firstY),
-                Fill = new SolidColorBrush(Color.FromArgb(GetBandAlpha(), levelColor.R, levelColor.G, levelColor.B)),
-                IsHitTestVisible = false
-            };
-            Canvas.SetLeft(band, leftX);
-            Canvas.SetTop(band, Math.Min(firstY, secondY));
-            OverlayCanvas.Children.Add(band);
-        }
-    }
-
-    private bool IsLevelEnabled(double ratio) =>
-        _levels.Any(level => Math.Abs(level.Ratio - ratio) <= 0.0001 && level.Enabled);
-
-    private void AddFibLines(double leftX, double rightX)
-    {
-        foreach (FibLevel level in _levels.Where(static item => item.Enabled))
-        {
-            double y = FibCalculator.CalculateY(_pointAY, _pointBY, level.Ratio);
-            double thickness = level.Ratio is 0 or 1 ? 1.6 : 1.1;
-            AddLine(leftX, y, rightX, y, GetLevelBrush(level.Ratio), thickness);
-        }
-    }
-
-    private void AddFibLabels(double leftX)
-    {
-        double labelX = Math.Max(ScreenMargin, leftX - LabelWidth - LabelMargin);
-        foreach (FibLevel level in _levels.Where(static item => item.Enabled))
-        {
-            double y = FibCalculator.CalculateY(_pointAY, _pointBY, level.Ratio);
-            AddLabel(level.Label, labelX, y - 9, GetLevelBrush(level.Ratio), LabelWidth);
-        }
-    }
-
-    private Brush GetLevelBrush(double ratio) => new SolidColorBrush(GetLevelColor(ratio));
-
-    private Color GetLevelColor(double ratio) => ratio switch
-    {
-        0 or 1 => ParseColor(_colors.BaseLevelColor),
-        0.236 or 2.000 or 2.618 => ParseColor(_colors.RedColor),
-        0.382 or 0.618 or 1.272 => ParseColor(_colors.GreenColor),
-        0.500 => ParseColor(_colors.OrangeColor),
-        0.786 or 1.414 => ParseColor(_colors.CyanColor),
-        1.618 => ParseColor(_colors.BlueColor),
-        3.618 => ParseColor(_colors.PurpleColor),
-        4.236 => ParseColor(_colors.PinkColor),
-        _ when ratio < 0 => Color.FromRgb(120, 123, 134),
-        _ => ParseColor(_colors.GreenColor)
-    };
-
-    private byte GetBandAlpha() => (byte)Math.Round(Math.Clamp(_bandOpacity, 0, 1) * byte.MaxValue);
-
-    private static Color ParseColor(string value)
-    {
-        if (!ColorSettings.TryNormalizeHex(value, out string normalized))
-        {
-            return Colors.Gray;
-        }
-
-        return (Color)ColorConverter.ConvertFromString(normalized);
-    }
-
     private Point ClampPointToOverlayBounds(Point point)
     {
         (double minX, double maxX, double minY, double maxY) = GetHandleBounds();
@@ -1056,84 +870,11 @@ public partial class MainWindow : Window
 
     private (double MinX, double MaxX, double MinY, double MaxY) GetHandleBounds()
     {
-        double edgePadding = HandleDiameter / 2 + HandleEdgeMargin;
+        double edgePadding = HandleEdgePadding;
         return (
             edgePadding,
             Math.Max(edgePadding, ActualWidth - edgePadding),
             edgePadding,
             Math.Max(edgePadding, ActualHeight - edgePadding));
     }
-
-    private void AddWholeRulerHitArea()
-    {
-        OverlayCanvas.Children.Add(new Line
-        {
-            X1 = _pointAX,
-            Y1 = _pointAY,
-            X2 = _pointBX,
-            Y2 = _pointBY,
-            Stroke = Brushes.Transparent,
-            StrokeThickness = 14,
-            Tag = DragTarget.WholeRuler,
-            Cursor = Cursors.SizeAll
-        });
-    }
-
-    private void AddLine(double x1, double y1, double x2, double y2, Brush brush, double thickness)
-    {
-        OverlayCanvas.Children.Add(new Line
-        {
-            X1 = x1,
-            Y1 = y1,
-            X2 = x2,
-            Y2 = y2,
-            Stroke = brush,
-            StrokeThickness = thickness,
-            SnapsToDevicePixels = true,
-            IsHitTestVisible = false
-        });
-    }
-
-    private void AddPoint(double x, double y, Brush brush, DragTarget target)
-    {
-        Ellipse point = new()
-        {
-            Width = HandleDiameter,
-            Height = HandleDiameter,
-            Fill = Brushes.Transparent,
-            Stroke = brush,
-            StrokeThickness = 2,
-            Tag = target,
-            Cursor = Cursors.SizeAll
-        };
-        Canvas.SetLeft(point, x - HandleDiameter / 2);
-        Canvas.SetTop(point, y - HandleDiameter / 2);
-        OverlayCanvas.Children.Add(point);
-    }
-
-    private void AddLabel(string text, double x, double y, Brush foreground, double width = 24)
-    {
-        TextBlock label = new()
-        {
-            Text = text,
-            Foreground = foreground,
-            FontSize = width == LabelWidth ? 12 : 12,
-            FontWeight = FontWeights.SemiBold,
-            Width = width,
-            TextAlignment = width == LabelWidth ? TextAlignment.Right : TextAlignment.Left,
-            Padding = new Thickness(0, 1, 0, 1)
-        };
-        Canvas.SetLeft(label, x);
-        Canvas.SetTop(label, y);
-        OverlayCanvas.Children.Add(label);
-    }
-
-    private enum DragTarget
-    {
-        None,
-        A,
-        B,
-        WholeRuler
-    }
-
 }

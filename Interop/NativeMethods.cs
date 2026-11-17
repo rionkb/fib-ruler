@@ -12,8 +12,6 @@ internal static class NativeMethods
     internal const uint ModShift = 0x0004;
     internal const uint ModNoRepeat = 0x4000;
     internal const uint VirtualKeyEscape = 0x1B;
-    internal const uint VirtualKeyA = 0x41;
-    internal const uint VirtualKeyD = 0x44;
     internal const uint VirtualKeyF = 0x46;
     internal const int HotkeyId = 0xF1B;
     internal const int EscapeHotkeyId = 0xF1D;
