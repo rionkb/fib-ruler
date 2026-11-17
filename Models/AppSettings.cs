@@ -41,6 +41,11 @@ public sealed class ColorSettings
 {
     public const double DefaultBandOpacity = 0.2;
 
+    public static readonly string[] ColorKeys =
+    [
+        "Base", "Red", "Green", "Orange", "Cyan", "Blue", "Purple", "Pink"
+    ];
+
     public string BaseLevelColor { get; set; } = "#808080";
 
     public string RedColor { get; set; } = "#F23645";
@@ -59,17 +64,43 @@ public sealed class ColorSettings
 
     public static ColorSettings CreateDefault() => new();
 
-    public static ColorSettings Clone(ColorSettings colors) => new()
+    public string GetColor(string key) => key switch
     {
-        BaseLevelColor = colors.BaseLevelColor,
-        RedColor = colors.RedColor,
-        GreenColor = colors.GreenColor,
-        OrangeColor = colors.OrangeColor,
-        CyanColor = colors.CyanColor,
-        BlueColor = colors.BlueColor,
-        PurpleColor = colors.PurpleColor,
-        PinkColor = colors.PinkColor
+        "Red" => RedColor,
+        "Green" => GreenColor,
+        "Orange" => OrangeColor,
+        "Cyan" => CyanColor,
+        "Blue" => BlueColor,
+        "Purple" => PurpleColor,
+        "Pink" => PinkColor,
+        _ => BaseLevelColor
     };
+
+    public void SetColor(string key, string value)
+    {
+        switch (key)
+        {
+            case "Red": RedColor = value; break;
+            case "Green": GreenColor = value; break;
+            case "Orange": OrangeColor = value; break;
+            case "Cyan": CyanColor = value; break;
+            case "Blue": BlueColor = value; break;
+            case "Purple": PurpleColor = value; break;
+            case "Pink": PinkColor = value; break;
+            default: BaseLevelColor = value; break;
+        }
+    }
+
+    public static ColorSettings Clone(ColorSettings colors)
+    {
+        ColorSettings clone = new();
+        foreach (string key in ColorKeys)
+        {
+            clone.SetColor(key, colors.GetColor(key));
+        }
+
+        return clone;
+    }
 
     public static bool TryNormalizeHex(string? value, out string normalized)
     {

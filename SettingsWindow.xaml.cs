@@ -13,6 +13,8 @@ namespace FibRuler;
 public partial class SettingsWindow : Window
 {
     private readonly MainWindow _overlay;
+    private readonly Dictionary<string, TextBox> _colorTextBoxes;
+    private readonly Dictionary<string, Button> _colorButtons;
     private ShortcutTarget? _capturingTarget;
     private bool _updatingUi;
 
@@ -21,6 +23,28 @@ public partial class SettingsWindow : Window
         _updatingUi = true;
         InitializeComponent();
         _updatingUi = false;
+        _colorTextBoxes = new Dictionary<string, TextBox>
+        {
+            ["Base"] = BaseColorTextBox,
+            ["Red"] = RedColorTextBox,
+            ["Green"] = GreenColorTextBox,
+            ["Orange"] = OrangeColorTextBox,
+            ["Cyan"] = CyanColorTextBox,
+            ["Blue"] = BlueColorTextBox,
+            ["Purple"] = PurpleColorTextBox,
+            ["Pink"] = PinkColorTextBox
+        };
+        _colorButtons = new Dictionary<string, Button>
+        {
+            ["Base"] = BaseColorButton,
+            ["Red"] = RedColorButton,
+            ["Green"] = GreenColorButton,
+            ["Orange"] = OrangeColorButton,
+            ["Cyan"] = CyanColorButton,
+            ["Blue"] = BlueColorButton,
+            ["Purple"] = PurpleColorButton,
+            ["Pink"] = PinkColorButton
+        };
         _overlay = overlay;
         UpdateUi();
     }
@@ -98,7 +122,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        string currentValue = GetColorValue(_overlay.CurrentColors, colorKey);
+        string currentValue = _overlay.CurrentColors.GetColor(colorKey);
         if (!ColorSettings.TryNormalizeHex(currentValue, out string normalized))
         {
             return;
@@ -119,7 +143,7 @@ public partial class SettingsWindow : Window
         _updatingUi = true;
         try
         {
-            SetColorTextValue(colorKey, selectedColor);
+            _colorTextBoxes[colorKey].Text = selectedColor;
         }
         finally
         {
@@ -153,14 +177,11 @@ public partial class SettingsWindow : Window
     private void ApplyAppearance()
     {
         ColorSettings colors = _overlay.CurrentColors;
-        colors.BaseLevelColor = BaseColorTextBox.Text;
-        colors.RedColor = RedColorTextBox.Text;
-        colors.GreenColor = GreenColorTextBox.Text;
-        colors.OrangeColor = OrangeColorTextBox.Text;
-        colors.CyanColor = CyanColorTextBox.Text;
-        colors.BlueColor = BlueColorTextBox.Text;
-        colors.PurpleColor = PurpleColorTextBox.Text;
-        colors.PinkColor = PinkColorTextBox.Text;
+        foreach (string key in ColorSettings.ColorKeys)
+        {
+            colors.SetColor(key, _colorTextBoxes[key].Text);
+        }
+
         if (!_overlay.TryApplyAppearance(colors, BandOpacitySlider.Value, out string error))
         {
             HintText.Text = error;
@@ -179,14 +200,11 @@ public partial class SettingsWindow : Window
             CurrentDrawShortcutText.Text = _overlay.DrawShortcutDisplay;
             CurrentDeleteShortcutText.Text = _overlay.DeleteShortcutDisplay;
             ColorSettings colors = _overlay.CurrentColors;
-            BaseColorTextBox.Text = colors.BaseLevelColor;
-            RedColorTextBox.Text = colors.RedColor;
-            GreenColorTextBox.Text = colors.GreenColor;
-            OrangeColorTextBox.Text = colors.OrangeColor;
-            CyanColorTextBox.Text = colors.CyanColor;
-            BlueColorTextBox.Text = colors.BlueColor;
-            PurpleColorTextBox.Text = colors.PurpleColor;
-            PinkColorTextBox.Text = colors.PinkColor;
+            foreach (string key in ColorSettings.ColorKeys)
+            {
+                _colorTextBoxes[key].Text = colors.GetColor(key);
+            }
+
             BandOpacitySlider.Value = _overlay.CurrentBandOpacity;
             BandOpacityText.Text = $"{_overlay.CurrentBandOpacity:P0}";
             UpdateColorSwatches(colors);
@@ -211,49 +229,17 @@ public partial class SettingsWindow : Window
 
     private void UpdateColorSwatches(ColorSettings colors)
     {
-        SetColorSwatch(BaseColorButton, colors.BaseLevelColor);
-        SetColorSwatch(RedColorButton, colors.RedColor);
-        SetColorSwatch(GreenColorButton, colors.GreenColor);
-        SetColorSwatch(OrangeColorButton, colors.OrangeColor);
-        SetColorSwatch(CyanColorButton, colors.CyanColor);
-        SetColorSwatch(BlueColorButton, colors.BlueColor);
-        SetColorSwatch(PurpleColorButton, colors.PurpleColor);
-        SetColorSwatch(PinkColorButton, colors.PinkColor);
+        foreach (string key in ColorSettings.ColorKeys)
+        {
+            SetColorSwatch(_colorButtons[key], colors.GetColor(key));
+        }
     }
 
     private static void SetColorSwatch(Button button, string value)
     {
         button.Background = ColorSettings.TryNormalizeHex(value, out string normalized)
-            ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString(normalized))
+            ? new SolidColorBrush((Color)ColorConverter.ConvertFromString(normalized))
             : Brushes.Transparent;
-    }
-
-    private static string GetColorValue(ColorSettings colors, string colorKey) => colorKey switch
-    {
-        "Base" => colors.BaseLevelColor,
-        "Red" => colors.RedColor,
-        "Green" => colors.GreenColor,
-        "Orange" => colors.OrangeColor,
-        "Cyan" => colors.CyanColor,
-        "Blue" => colors.BlueColor,
-        "Purple" => colors.PurpleColor,
-        "Pink" => colors.PinkColor,
-        _ => colors.BaseLevelColor
-    };
-
-    private void SetColorTextValue(string colorKey, string value)
-    {
-        switch (colorKey)
-        {
-            case "Base": BaseColorTextBox.Text = value; break;
-            case "Red": RedColorTextBox.Text = value; break;
-            case "Green": GreenColorTextBox.Text = value; break;
-            case "Orange": OrangeColorTextBox.Text = value; break;
-            case "Cyan": CyanColorTextBox.Text = value; break;
-            case "Blue": BlueColorTextBox.Text = value; break;
-            case "Purple": PurpleColorTextBox.Text = value; break;
-            case "Pink": PinkColorTextBox.Text = value; break;
-        }
     }
 
     private sealed class WindowHandle : Forms.IWin32Window

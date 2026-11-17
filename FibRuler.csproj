@@ -9,6 +9,11 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\FibRuler.ico</ApplicationIcon>
     <Version>1.0.0</Version>
+
+    <!-- 出力とランタイムの軽量化 -->
+    <DebugType>embedded</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>true</InvariantGlobalization>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <Product>Fib Ruler</Product>
